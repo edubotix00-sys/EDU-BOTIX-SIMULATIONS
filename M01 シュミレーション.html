@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wi-Fi 通信ハッキングシミュレーター</title>
+  <style>
+    :root {
+      --bg-dark: #050a0f;
+      --panel-bg: #0a1118;
+      --hacker-green: #00ff41;
+      --hacker-green-glow: rgba(0, 255, 65, 0.4);
+      --text-main: #e2e8f0;
+      --text-muted: #64748b;
+      --border-color: #1a2c3f;
+    }
+    body {
+      margin: 0; padding: 20px;
+      background-color: transparent; /* 背景を透明に設定 */
+      color: var(--text-main);
+      font-family: 'Consolas', 'Courier New', monospace;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh;
+    }
+    .simulator-container {
+      background: var(--panel-bg);
+      border: 1px solid var(--hacker-green);
+      border-radius: 8px;
+      padding: 20px;
+      max-width: 800px;
+      width: 100%;
+      box-shadow: 0 0 20px var(--hacker-green-glow);
+    }
+    h2 {
+      margin: 0 0 20px 0; color: var(--hacker-green); text-align: center;
+      border-bottom: 1px dashed var(--hacker-green); padding-bottom: 10px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    ruby { font-size: 1.1em; font-family: 'Segoe UI', sans-serif;}
+    rt { font-size: 0.6em; color: var(--text-muted); }
+
+    .network-area {
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    @media (min-width: 700px) {
+      .network-area { flex-direction: row; align-items: center; }
+    }
+
+    /* スマホ側 UI */
+    .device {
+      background: #0f172a; border: 1px solid var(--border-color);
+      border-radius: 12px; padding: 15px; flex: 1;
+      text-align: center; position: relative;
+    }
+    .device-title {
+      font-size: 12px; color: var(--text-muted); margin-bottom: 15px;
+      letter-spacing: 1px;
+    }
+    .btn-group { display: flex; flex-direction: column; gap: 10px; }
+    .btn {
+      background: transparent; color: var(--hacker-green);
+      border: 1px solid var(--hacker-green); padding: 10px;
+      border-radius: 4px; cursor: pointer; font-weight: bold; font-family: inherit;
+      transition: all 0.1s;
+    }
+    .btn:hover { background: rgba(0, 255, 65, 0.1); }
+    .btn:active { transform: scale(0.95); background: var(--hacker-green); color: #000; }
+    .btn.unknown { border-color: #ff3344; color: #ff3344; }
+    .btn.unknown:hover { background: rgba(255, 51, 68, 0.1); }
+    .btn.unknown:active { background: #ff3344; color: #000; }
+
+    /* 通信経路（アニメーションエリア） */
+    .wifi-space {
+      flex: 1.5; height: 100px; position: relative;
+      border: 1px dashed var(--border-color); border-radius: 8px;
+      display: flex; align-items: center; overflow: hidden;
+    }
+    .wifi-label {
+      position: absolute; top: 5px; width: 100%; text-align: center;
+      font-size: 10px; color: var(--text-muted);
+    }
+    .packet {
+      position: absolute; left: -100px;
+      background: var(--hacker-green); color: #000;
+      padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 14px;
+      transition: left 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 10px var(--hacker-green);
+    }
+
+    /* ロボット側 UI (コード表示) */
+    .robot-brain {
+      flex: 2; background: #000; border: 1px solid var(--border-color);
+      border-radius: 8px; padding: 15px; text-align: left;
+    }
+    pre { margin: 0; font-size: 13px; line-height: 1.5; color: #a5b4fc; }
+    .code-line { padding: 2px 5px; border-radius: 3px; transition: background 0.2s; }
+    .code-line.active { background: rgba(0, 255, 65, 0.2); border-left: 3px solid var(--hacker-green); color: #fff; }
+    .code-line.error { background: rgba(255, 51, 68, 0.2); border-left: 3px solid #ff3344; color: #fff; }
+
+    .robot-status {
+      margin-top: 15px; padding: 10px; background: #0f172a;
+      border-radius: 4px; border: 1px solid var(--border-color);
+      font-size: 14px; font-weight: bold; text-align: center; min-height: 20px;
+    }
+    .status-ok { color: var(--hacker-green); }
+    .status-err { color: #ff3344; }
+  </style>
+</head>
+<body>
+
+  <div class="simulator-container">
+    <h2><ruby>電波<rt>でんぱ</rt></ruby>ハッキング・シミュレーター</h2>
+    
+    <div class="network-area">
+      <!-- スマホ側 -->
+      <div class="device">
+        <div class="device-title">📱 キミのスマホ</div>
+        <div class="btn-group">
+          <button class="btn" onclick="sendData('FORWARD')">前進ボタン</button>
+          <button class="btn" onclick="sendData('STOP')">停止ボタン</button>
+          <button class="btn unknown" onclick="sendData('DANCE')">踊るボタン（？）</button>
+        </div>
+      </div>
+
+      <!-- Wi-Fi空間 -->
+      <div class="wifi-space" id="wifiSpace">
+        <div class="wifi-label">⚡ 見えないWi-Fiの電波 ⚡</div>
+        <!-- パケットがここに生成されます -->
+      </div>
+
+      <!-- ロボット側（コード） -->
+      <div class="device robot-brain">
+        <div class="device-title">🤖 ロボットの脳みそ（ESP32）</div>
+        <pre>String cmd = 受け取った文字;
+
+<div id="line-fwd" class="code-line">if (cmd == "FORWARD") {
+  // モーターを回して進む！
+} </div><div id="line-stop" class="code-line">else if (cmd == "STOP") {
+  // モーターを止める！
+} </div><div id="line-else" class="code-line">else {
+  // 何もしない（無視）
+}</div></pre>
+        <div id="robotOutput" class="robot-status">待機中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isSending = false;
+
+    function sendData(command) {
+      if (isSending) return; // 送信中は連打防止
+      isSending = true;
+
+      // 1. UIのリセット
+      document.getElementById('line-fwd').className = 'code-line';
+      document.getElementById('line-stop').className = 'code-line';
+      document.getElementById('line-else').className = 'code-line';
+      const output = document.getElementById('robotOutput');
+      output.innerText = '電波を受信中...';
+      output.className = 'robot-status';
+
+      // 2. パケット（文字）の生成とアニメーション
+      const wifiSpace = document.getElementById('wifiSpace');
+      const packet = document.createElement('div');
+      packet.className = 'packet';
+      packet.innerText = '"' + command + '"';
+      
+      // 不明なコマンドの場合は色を赤にする
+      if(command !== 'FORWARD' && command !== 'STOP') {
+        packet.style.background = '#ff3344';
+        packet.style.boxShadow = '0 0 10px #ff3344';
+        packet.style.color = '#fff';
+      }
+
+      wifiSpace.appendChild(packet);
+
+      // 少し待ってからCSSアニメーション開始（左から右へ）
+      setTimeout(() => {
+        packet.style.left = '80%';
+      }, 50);
+
+      // 3. アニメーション終了後（ロボットに到達）の処理
+      setTimeout(() => {
+        wifiSpace.removeChild(packet);
+        evaluateCode(command);
+        isSending = false;
+      }, 850);
+    }
+
+    function evaluateCode(cmd) {
+      const output = document.getElementById('robotOutput');
+
+      if (cmd === 'FORWARD') {
+        document.getElementById('line-fwd').className = 'code-line active';
+        output.innerText = '✅ ロボットが前進した！';
+        output.className = 'robot-status status-ok';
+      } else if (cmd === 'STOP') {
+        document.getElementById('line-stop').className = 'code-line active';
+        output.innerText = '✅ ロボットが停止した！';
+        output.className = 'robot-status status-ok';
+      } else {
+        document.getElementById('line-else').className = 'code-line error';
+        output.innerText = '❌ 「' + cmd + '」のやり方が分からない...';
+        output.className = 'robot-status status-err';
+      }
+    }
+  </script>
+</body>
+</html>
