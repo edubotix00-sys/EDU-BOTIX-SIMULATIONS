@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PWM シミュレーター</title>
+  <style>
+    :root {
+      --bg-dark: #0a0505;
+      --panel-bg: #1a0a0a;
+      --main-red: #ff3344;
+      --dim-red: #4a0d13;
+      --text-main: #f8f9fa;
+      --text-muted: #a0a0a0;
+      --border-color: #3d0005;
+    }
+    body {
+      margin: 0; padding: 20px;
+      background-color: transparent; /* ここを透明に変更しました */
+      color: var(--text-main);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh;
+    }
+    .simulator-container {
+      background: var(--panel-bg);
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 10px 30px rgba(255, 51, 68, 0.1);
+    }
+    h2 {
+      margin: 0 0 20px 0; color: var(--main-red); text-align: center;
+      border-bottom: 1px solid var(--border-color); padding-bottom: 10px;
+    }
+    ruby { font-size: 1.1em; }
+    rt { font-size: 0.6em; color: var(--text-muted); }
+    
+    /* LEDの表現 */
+    .led-display {
+      display: flex; justify-content: center; align-items: center;
+      margin-bottom: 30px; padding: 20px;
+      background: #000; border-radius: 8px; border: 1px solid var(--border-color);
+    }
+    .led-bulb {
+      width: 80px; height: 80px; border-radius: 50%;
+      background-color: var(--dim-red);
+      transition: background-color 0.1s, box-shadow 0.1s;
+      border: 2px solid #551111;
+    }
+    
+    /* 波形グラフ */
+    .wave-display {
+      width: 100%; height: 120px; background: #000;
+      border-radius: 8px; border: 1px solid var(--border-color);
+      margin-bottom: 20px; position: relative; overflow: hidden;
+    }
+    canvas { width: 100%; height: 100%; display: block; }
+    
+    /* コントロールパネル */
+    .controls {
+      background: var(--panel-bg); padding: 20px;
+      border-radius: 8px; border: 1px solid var(--border-color);
+    }
+    .control-label {
+      display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 10px;
+    }
+    .val-display { color: var(--main-red); font-size: 1.2em; font-weight: 900; }
+    
+    input[type=range] {
+      width: 100%; height: 10px; background: var(--dim-red);
+      border-radius: 5px; outline: none; -webkit-appearance: none;
+      margin-bottom: 20px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 24px; height: 24px;
+      border-radius: 50%; background: var(--main-red); cursor: pointer;
+      box-shadow: 0 0 10px var(--main-red);
+    }
+    
+    /* スピード切替ボタン */
+    .mode-toggle {
+      display: flex; gap: 10px;
+    }
+    .btn {
+      flex: 1; padding: 12px; border: 2px solid var(--border-color);
+      background: transparent; color: var(--text-muted);
+      font-weight: bold; border-radius: 6px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn.active {
+      background: var(--main-red); color: #fff; border-color: var(--main-red);
+      box-shadow: 0 0 15px rgba(255, 51, 68, 0.4);
+    }
+    .desc { font-size: 13px; color: var(--text-muted); margin-top: 15px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+  <div class="simulator-container">
+    <h2><ruby>魔法<rt>まほう</rt></ruby>の光！PWMシミュレーター</h2>
+    
+    <div class="led-display">
+      <div class="led-bulb" id="ledBulb"></div>
+    </div>
+    
+    <div class="wave-display">
+      <canvas id="waveCanvas"></canvas>
+    </div>
+    
+    <div class="controls">
+      <div class="control-label">
+        <span>パワーの<ruby>設定<rt>せってい</rt></ruby>（0〜255）</span>
+        <span class="val-display" id="powerVal">127</span>
+      </div>
+      <input type="range" id="powerSlider" min="0" max="255" value="127">
+      
+      <div class="control-label">
+        <span>スイッチのスピード</span>
+      </div>
+      <div class="mode-toggle">
+        <button class="btn active" id="btnSlow" onclick="setMode('slow')">ゆっくり</button>
+        <button class="btn" id="btnFast" onclick="setMode('fast')">超高速（PWM）</button>
+      </div>
+      
+      <div class="desc" id="modeDesc">
+        <strong>ゆっくりモード：</strong> 本当は「ON」と「OFF」をくり返しているだけなのが分かるね！パワーの数字を大きくすると「ON」の時間が長くなるよ。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const slider = document.getElementById('powerSlider');
+    const powerVal = document.getElementById('powerVal');
+    const ledBulb = document.getElementById('ledBulb');
+    const canvas = document.getElementById('waveCanvas');
+    const ctx = canvas.getContext('2d');
+    const btnSlow = document.getElementById('btnSlow');
+    const btnFast = document.getElementById('btnFast');
+    const modeDesc = document.getElementById('modeDesc');
+
+    let power = 127;
+    let isFastMode = false;
+    let offset = 0; // アニメーション用
+    let blinkTimer = 0; // ゆっくりモードの時間管理
+    
+    // キャンバスサイズの調整
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // スライダー操作
+    slider.addEventListener('input', (e) => {
+      power = parseInt(e.target.value);
+      powerVal.innerText = power;
+      updateLED();
+    });
+
+    // モード切替
+    function setMode(mode) {
+      isFastMode = (mode === 'fast');
+      if (isFastMode) {
+        btnFast.classList.add('active');
+        btnSlow.classList.remove('active');
+        modeDesc.innerHTML = '<strong>超高速モード（PWM）：</strong> スイッチをものすごいスピードで切り替えると、人間の目には<ruby>錯覚<rt>さっかく</rt></ruby>で「中くらいの明るさ」に見えるんだ！これがPWMの魔法だよ。';
+      } else {
+        btnSlow.classList.add('active');
+        btnFast.classList.remove('active');
+        modeDesc.innerHTML = '<strong>ゆっくりモード：</strong> 本当は「ON」と「OFF」をくり返しているだけなのが分かるね！パワーの数字を大きくすると「ON」の時間が長くなるよ。';
+      }
+      updateLED();
+    }
+
+    // LEDの明るさ更新
+    function updateLED() {
+      const ratio = power / 255;
+      
+      if (isFastMode) {
+        // 超高速：目の錯覚をシミュレート（不透明度で中間の明るさを表現）
+        const glow = ratio * 40;
+        const opacity = 0.2 + (ratio * 0.8);
+        ledBulb.style.backgroundColor = `rgba(255, 51, 68, ${opacity})`;
+        ledBulb.style.boxShadow = `0 0 ${glow}px rgba(255, 51, 68, ${ratio})`;
+      } 
+      // ゆっくりモードのLEDは draw() ループ内でON/OFF切り替え
+    }
+
+    // アニメーションループ
+    function draw() {
+      const w = canvas.width;
+      const h = canvas.height;
+      const ratio = power / 255;
+      
+      // 背景クリア
+      ctx.fillStyle = '#050202';
+      ctx.fillRect(0, 0, w, h);
+      
+      // グリッド線
+      ctx.strokeStyle = '#2a0b10';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, h/2); ctx.lineTo(w, h/2);
+      ctx.stroke();
+
+      // 波形の描画
+      const cycleWidth = isFastMode ? 20 : 150; // 波の幅（高速時は細かく、低速時は広く）
+      const speed = isFastMode ? 5 : 2; // 流れるスピード
+      offset = (offset + speed) % cycleWidth;
+      
+      ctx.strokeStyle = '#ff3344';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+
+      const onWidth = cycleWidth * ratio;
+      
+      // グラフの描画（右から左へ流れるように）
+      for (let x = -cycleWidth; x <= w + cycleWidth; x += cycleWidth) {
+        const startX = x - offset;
+        
+        // OFFからONへの立ち上がり
+        ctx.moveTo(startX, h - 20);
+        ctx.lineTo(startX, 20);
+        
+        // ONの期間（上の線）
+        ctx.lineTo(startX + onWidth, 20);
+        
+        // ONからOFFへの立ち下がり
+        ctx.lineTo(startX + onWidth, h - 20);
+        
+        // OFFの期間（下の線）
+        ctx.lineTo(startX + cycleWidth, h - 20);
+      }
+      ctx.stroke();
+      
+      // ゆっくりモードの時のLED点滅ロジック
+      if (!isFastMode) {
+        blinkTimer = (blinkTimer + speed) % cycleWidth;
+        // 今、波形がONの位置にいるかOFFの位置にいるかを判定
+        if (blinkTimer < onWidth && power > 0) {
+          // ON
+          ledBulb.style.backgroundColor = '#ff3344';
+          ledBulb.style.boxShadow = '0 0 30px rgba(255, 51, 68, 0.8)';
+        } else {
+          // OFF
+          if(power === 255) {
+             ledBulb.style.backgroundColor = '#ff3344';
+             ledBulb.style.boxShadow = '0 0 30px rgba(255, 51, 68, 0.8)';
+          } else {
+             ledBulb.style.backgroundColor = '#4a0d13';
+             ledBulb.style.boxShadow = 'none';
+          }
+        }
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    // 初期化
+    updateLED();
+    draw();
+  </script>
+</body>
+</html>
