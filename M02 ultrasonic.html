@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>超音波センサー シミュレーター</title>
+  <style>
+    :root {
+      --bg-dark: #0a0514;
+      --panel-bg: #110a1f;
+      --radar-purple: #b026ff; /* テーマカラー：紫 */
+      --radar-purple-glow: rgba(176, 38, 255, 0.4);
+      --warning-yellow: #ffeb3b;
+      --alert-red: #ff3344;
+      --text-main: #e2e8f0;
+      --text-muted: #8b79a5;
+      --border-color: #2d1b4e;
+    }
+    body {
+      margin: 0; padding: 20px;
+      background-color: transparent; /* 背景透明 */
+      color: var(--text-main);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh;
+    }
+    .simulator-container {
+      background: var(--panel-bg);
+      border: 2px solid var(--radar-purple);
+      border-radius: 12px;
+      padding: 25px;
+      max-width: 700px;
+      width: 100%;
+      box-shadow: 0 0 25px var(--radar-purple-glow);
+    }
+    h2 {
+      margin: 0 0 20px 0; color: var(--radar-purple); text-align: center;
+      border-bottom: 1px dashed var(--radar-purple); padding-bottom: 10px;
+    }
+    ruby { font-size: 1.1em; }
+    rt { font-size: 0.6em; color: var(--text-muted); }
+
+    /* レーダー表示エリア */
+    .radar-area {
+      height: 180px; background: #000;
+      border: 1px solid var(--border-color); border-radius: 8px;
+      position: relative; overflow: hidden; margin-bottom: 20px;
+    }
+    canvas { width: 100%; height: 100%; display: block; }
+    
+    .robot-icon {
+      position: absolute; left: 20px; top: 50%; transform: translateY(-50%);
+      font-size: 40px; z-index: 10;
+      text-shadow: 0 0 10px var(--radar-purple);
+    }
+
+    /* コントロールエリア */
+    .controls {
+      background: #0b0716; padding: 20px; border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+    .slider-row {
+      display: flex; align-items: center; gap: 15px; margin-bottom: 20px;
+    }
+    .slider-label { font-weight: bold; width: 120px; color: var(--text-main); }
+    input[type=range] {
+      flex: 1; accent-color: var(--radar-purple); height: 8px;
+    }
+    
+    /* 計算式エリア */
+    .calc-box {
+      background: #000; padding: 15px; border-radius: 6px;
+      border-left: 4px solid var(--radar-purple); font-family: 'Consolas', monospace;
+      font-size: 15px;
+    }
+    .calc-row { margin-bottom: 8px; display: flex; justify-content: space-between; }
+    .val-time { color: var(--warning-yellow); font-weight: bold; }
+    .val-dist { color: var(--radar-purple); font-weight: bold; font-size: 18px; text-shadow: 0 0 5px var(--radar-purple-glow); }
+    
+    .status-alert {
+      text-align: center; font-size: 20px; font-weight: bold;
+      padding: 10px; border-radius: 6px; margin-top: 15px;
+      transition: all 0.3s;
+    }
+    .status-safe { background: rgba(176, 38, 255, 0.1); color: var(--radar-purple); border: 1px solid var(--radar-purple); }
+    .status-danger { background: rgba(255, 51, 68, 0.1); color: var(--alert-red); border: 1px solid var(--alert-red); }
+
+  </style>
+</head>
+<body>
+
+  <div class="simulator-container">
+    <h2>🦇 コウモリの目！超音波シミュレーター</h2>
+    
+    <div class="radar-area">
+      <div class="robot-icon" id="robot">🤖</div>
+      <canvas id="sonarCanvas"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="slider-row">
+        <div class="slider-label">壁までの<ruby>距離<rt>きょり</rt></ruby></div>
+        <input type="range" id="distSlider" min="5" max="50" value="30">
+        <div style="width: 50px; text-align: right; font-weight: bold;"><span id="sliderVal">30</span>cm</div>
+      </div>
+
+      <div class="calc-box">
+        <div class="calc-row">
+          <span>⏳ 音の往復時間 (T):</span>
+          <span class="val-time" id="dispTime">1764 µs</span>
+        </div>
+        <div class="calc-row" style="color: #6d5b8e; font-size: 13px;">
+          <span>L = (T × 0.034) / 2</span>
+        </div>
+        <div class="calc-row" style="margin-bottom: 0;">
+          <span>📏 計算された距離 (L):</span>
+          <span class="val-dist" id="dispDist">30.0 cm</span>
+        </div>
+      </div>
+
+      <div id="robotStatus" class="status-alert status-safe">
+        🟢 まっすぐ進む！
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('sonarCanvas');
+    const ctx = canvas.getContext('2d');
+    const slider = document.getElementById('distSlider');
+    
+    let targetDist = 30; // 5〜50cm
+    let waveDist = 0;    // 波の進んだ総合距離
+    
+    function resize() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    slider.addEventListener('input', (e) => {
+      targetDist = parseInt(e.target.value);
+      document.getElementById('sliderVal').innerText = targetDist;
+      
+      // 計算式の更新 (逆算: 距離 = (時間 * 0.034)/2 -> 時間 = (距離 * 2) / 0.034)
+      const timeMicro = Math.round((targetDist * 2) / 0.034);
+      document.getElementById('dispTime').innerText = timeMicro + " µs";
+      document.getElementById('dispDist').innerText = targetDist.toFixed(1) + " cm";
+
+      // ステータスの更新
+      const statusBox = document.getElementById('robotStatus');
+      const robotIcon = document.getElementById('robot');
+      if (targetDist < 15) {
+        statusBox.className = 'status-alert status-danger';
+        statusBox.innerText = '🚨 壁が近い！右に曲がる！（回避）';
+        robotIcon.style.transform = 'translateY(-50%) rotate(30deg)'; // 右折の動き
+      } else {
+        statusBox.className = 'status-alert status-safe';
+        statusBox.innerText = '🟢 まっすぐ進む！';
+        robotIcon.style.transform = 'translateY(-50%) rotate(0deg)';
+      }
+    });
+
+    function draw() {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // ロボットの原点(左側)
+      const startX = 60;
+      const startY = h / 2;
+      
+      // 壁のX座標 (50cmを画面幅にマッピング)
+      const wallX = startX + (targetDist / 50) * (w - startX - 40);
+      const maxDist = wallX - startX; // 片道の距離
+
+      // グリッド線
+      ctx.strokeStyle = '#2d1b4e'; ctx.lineWidth = 1;
+      for(let i=10; i<=50; i+=10) {
+        const gridX = startX + (i / 50) * (w - startX - 40);
+        ctx.beginPath(); ctx.moveTo(gridX, 0); ctx.lineTo(gridX, h); ctx.stroke();
+        ctx.fillStyle = '#6d5b8e'; ctx.font = '10px sans-serif';
+        ctx.fillText(i+'cm', gridX - 10, h - 5);
+      }
+
+      // 壁の描画
+      ctx.fillStyle = '#3a2361';
+      ctx.fillRect(wallX, 20, 20, h - 40);
+      ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif';
+      ctx.fillText('壁', wallX + 3, startY + 5);
+
+      // 危険ライン(15cm)
+      const dangerX = startX + (15 / 50) * (w - startX - 40);
+      ctx.strokeStyle = '#ff3344'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(dangerX, 0); ctx.lineTo(dangerX, h); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 音波のアニメーション
+      const speed = 7;
+      waveDist += speed;
+      
+      // 往復（片道の2倍）を超えたらリセット
+      if (waveDist > maxDist * 2) {
+        waveDist = 0;
+      }
+
+      // 音波の円弧を描画
+      ctx.beginPath();
+      if (waveDist <= maxDist) {
+        // 出ていく音（ロボット中心、紫）
+        ctx.arc(startX, startY, waveDist, -Math.PI/4, Math.PI/4);
+        ctx.strokeStyle = 'rgba(176, 38, 255, 0.9)';
+      } else {
+        // 壁から跳ね返ってくる音（壁中心、薄い紫）
+        const returnRadius = waveDist - maxDist;
+        ctx.arc(wallX, startY, returnRadius, Math.PI - Math.PI/4, Math.PI + Math.PI/4);
+        ctx.strokeStyle = 'rgba(216, 133, 255, 0.9)';
+      }
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      requestAnimationFrame(draw);
+    }
+
+    // 初期化トリガー
+    slider.dispatchEvent(new Event('input'));
+    draw();
+  </script>
+</body>
+</html>
