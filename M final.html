@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>オーバーライド ロジックシミュレーター</title>
+  <style>
+    :root {
+      --panel-bg: #14140a;
+      --main-yellow: #ffd600;
+      --main-yellow-glow: rgba(255, 214, 0, 0.4);
+      --bg-workspace: #1f1f14;
+      --text-main: #f5f5f0;
+      --text-muted: #8f8f7a;
+      --border-color: #33331a;
+      
+      /* ブロックの色 */
+      --block-ctrl: #ffab19;   /* もし〜なら (制御) */
+      --block-action: #4c97ff; /* 動かす (アクション) */
+      --block-shadow: rgba(0, 0, 0, 0.4);
+    }
+    
+    body {
+      margin: 0; padding: 20px;
+      background-color: transparent; /* 背景透明 */
+      color: var(--text-main);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh;
+    }
+    
+    .simulator-container {
+      background: var(--panel-bg);
+      border: 1px solid var(--main-yellow);
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 750px;
+      width: 100%;
+      box-shadow: 0 0 20px var(--main-yellow-glow);
+    }
+    
+    h2 {
+      margin: 0 0 20px 0; color: var(--main-yellow); text-align: center;
+      border-bottom: 1px dashed var(--main-yellow); padding-bottom: 10px;
+    }
+    ruby { font-size: 1.1em; }
+    rt { font-size: 0.6em; color: var(--text-muted); }
+
+    .desc {
+      font-size: 14px; color: var(--text-muted);
+      text-align: center; margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .workspace {
+      display: flex; gap: 20px; margin-bottom: 20px;
+      flex-direction: column;
+    }
+    @media (min-width: 600px) {
+      .workspace { flex-direction: row; }
+    }
+
+    .panel {
+      flex: 1; background: var(--bg-workspace);
+      border: 1px solid var(--border-color); border-radius: 8px;
+      padding: 15px; min-height: 250px;
+    }
+    
+    h3 { margin: 0 0 15px 0; font-size: 16px; color: #fff; text-align: center; }
+
+    .block {
+      padding: 12px 15px; margin-bottom: 6px;
+      border-radius: 4px; color: white; font-weight: bold;
+      font-size: 14px; cursor: pointer; user-select: none;
+      box-shadow: 0 4px 0 var(--block-shadow);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .block:active {
+      transform: translateY(4px);
+      box-shadow: 0 0 0 var(--block-shadow);
+    }
+    .block.action { background: var(--block-action); border: 1px solid #3373cc; }
+    .block.ctrl { background: var(--block-ctrl); border: 1px solid #cf8b17; }
+    
+    .palette .block:hover { filter: brightness(1.1); }
+    
+    .program-area .block { margin-bottom: 2px; box-shadow: none; border-radius: 2px; }
+    .program-area .block:first-child { border-top-left-radius: 4px; border-top-right-radius: 4px; }
+    .program-area .block:last-child { border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; box-shadow: 0 4px 0 var(--block-shadow); }
+    
+    .hint { font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 15px; }
+
+    .btn-check {
+      width: 100%; background: var(--main-yellow); color: #000;
+      border: none; padding: 15px; border-radius: 8px;
+      font-size: 18px; font-weight: bold; cursor: pointer;
+      box-shadow: 0 4px 0 #ccab00; transition: all 0.1s;
+      margin-bottom: 15px;
+    }
+    .btn-check:active {
+      transform: translateY(4px); box-shadow: 0 0 0 #ccab00;
+    }
+
+    .result {
+      text-align: center; font-size: 15px; font-weight: bold;
+      min-height: 50px; display: flex; align-items: center; justify-content: center;
+      border-radius: 8px; padding: 10px; line-height: 1.5;
+    }
+    .result.success { background: rgba(255, 214, 0, 0.1); border: 1px solid var(--main-yellow); color: var(--main-yellow); }
+    .result.error { background: rgba(255, 51, 68, 0.1); border: 1px solid #ff3344; color: #ff3344; }
+  </style>
+</head>
+<body>
+
+  <div class="simulator-container">
+    <h2><ruby>優先順位<rt>ゆうせんじゅんい</rt></ruby>（オーバーライド）を組み立てよう！</h2>
+    <div class="desc">
+      左のブロックをクリックして、スマホからの命令よりも<br>「自動ブレーキ」を優先する安全システムを作ろう！
+    </div>
+
+    <div class="workspace">
+      <!-- 使えるブロック（パレット） -->
+      <div class="panel palette">
+        <h3>使えるブロック</h3>
+        <div class="block ctrl" onclick="addBlock('if_danger')">もし【距離 < 15cm】なら（危険）</div>
+        <div class="block ctrl" onclick="addBlock('else_safe')">でなければ（安全なら）</div>
+        <div class="block action" onclick="addBlock('act_brake')" style="background:#ff4747; border-color:#cc3333;">パワーを0にする＆LEDを光らせる</div>
+        <div class="block action" onclick="addBlock('act_drive')">スマホの命令通りに走る＆LEDを消す</div>
+      </div>
+
+      <!-- 組み立てエリア -->
+      <div class="panel program-area">
+        <h3>キミのプログラム</h3>
+        <!-- ループ表現の枠組み -->
+        <div style="padding: 8px; background: rgba(255,255,255,0.1); color: #ccc; border-radius: 4px 4px 0 0; font-size: 12px; font-weight:bold;">ずっと繰り返す ↻</div>
+        <div id="blocks-container" style="border-left: 2px solid #ccc; margin-left: 10px; padding-left: 5px; min-height: 100px;"></div>
+        <div class="hint">💡 いらないブロックはクリックすると消せるよ</div>
+      </div>
+    </div>
+
+    <button class="btn-check" onclick="checkAnswer()">ルールをテストする！</button>
+    
+    <div id="result-message" class="result">
+      ブロックを並べてテストボタンを押してね。
+    </div>
+  </div>
+
+  <script>
+    let program = [];
+
+    const blockData = {
+      'if_danger': { class: 'ctrl', text: 'もし【距離 < 15cm】なら（危険）' },
+      'else_safe': { class: 'ctrl', text: 'でなければ（安全なら）' },
+      'act_brake': { class: 'action', text: 'パワーを0にする＆LEDを光らせる', style: 'background:#ff4747; border-color:#cc3333;' },
+      'act_drive': { class: 'action', text: 'スマホの命令通りに走る＆LEDを消す' }
+    };
+
+    function addBlock(type) {
+      if(program.length >= 4) {
+        alert("ブロックは4つまでだよ！いらないブロックをクリックして消そう。");
+        return;
+      }
+      program.push(type);
+      renderBlocks();
+      resetMessage();
+    }
+
+    function removeBlock(index) {
+      program.splice(index, 1);
+      renderBlocks();
+      resetMessage();
+    }
+
+    function renderBlocks() {
+      const container = document.getElementById('blocks-container');
+      container.innerHTML = ''; 
+      program.forEach((type, index) => {
+        const div = document.createElement('div');
+        div.className = 'block ' + blockData[type].class;
+        div.innerText = blockData[type].text;
+        if(blockData[type].style) {
+          div.style = blockData[type].style;
+        }
+        div.onclick = () => removeBlock(index);
+        container.appendChild(div);
+      });
+    }
+
+    function resetMessage() {
+      const msg = document.getElementById('result-message');
+      msg.className = 'result';
+      msg.innerHTML = 'ブロックを並べてテストボタンを押してね。';
+    }
+
+    function checkAnswer() {
+      const msg = document.getElementById('result-message');
+      
+      if (program.length < 4) {
+        msg.className = 'result error';
+        msg.innerHTML = '❌ ブロックが足りないよ！全部で4つ組み合わせてね。';
+        return;
+      }
+
+      // 正解パターン: もし危険 -> ブレーキ -> でなければ -> スマホで走る
+      const p1 = (program[0] === 'if_danger' && program[1] === 'act_brake' && program[2] === 'else_safe' && program[3] === 'act_drive');
+
+      if (p1) {
+        msg.className = 'result success';
+        msg.innerHTML = '🎉 大正解！<br>これで壁が迫ってきた時、スマホの命令を無視して安全に止まれるね！（オーバーライド成功）';
+      } else {
+        msg.className = 'result error';
+        msg.innerHTML = '❌ 順番が違うみたい。<br>「もし危なかったら→止まる」「でなければ→スマホで走る」の順にしよう！';
+      }
+    }
+  </script>
+</body>
+</html>
