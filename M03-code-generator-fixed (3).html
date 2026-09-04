@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EDU-BOTIX // M03 DRIVE LAB</title>
+  <style>
+    :root {
+      --bg-color: #0b1325;
+      --panel-bg: #142038;
+      --main-red: #ff3344;
+      --main-red-hover: #ff5566;
+      --orange: #ff9800;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --border-color: #2e4063;
+    }
+    body {
+      margin: 0; padding: 0;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    header {
+      background: #0f172a;
+      padding: 20px 30px;
+      border-bottom: 2px solid var(--main-red);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    h1 { margin: 0; font-size: 24px; letter-spacing: 1px; color: #fff; }
+    .catch-copy { color: var(--text-muted); font-size: 14px; margin-top: 5px; }
+    
+    .tabs {
+      display: flex; gap: 10px;
+    }
+    .tab-btn {
+      background: var(--bg-color); color: var(--text-muted);
+      border: 1px solid var(--border-color); padding: 10px 20px;
+      border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold;
+    }
+    .tab-btn.active {
+      background: var(--main-red); color: #fff; border-color: var(--main-red);
+    }
+
+    main {
+      display: flex; flex-direction: column; gap: 20px;
+      padding: 20px; max-width: 1200px; margin: 0 auto;
+    }
+    @media (min-width: 900px) {
+      main { flex-direction: row; }
+    }
+    
+    .panel {
+      background: var(--panel-bg); border: 1px solid var(--border-color);
+      border-radius: 8px; padding: 25px; flex: 1;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    
+    h2 { margin: 0 0 10px 0; font-size: 20px; color: var(--main-red); border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+    .desc { font-size: 14px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.6; }
+    
+    .control-group { background: #0f172a; padding: 15px; border-radius: 6px; border: 1px solid var(--border-color); }
+    .control-label { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #fff; }
+    
+    .slider-container { display: flex; align-items: center; gap: 15px; margin-top: 10px; }
+    input[type=range] { flex: 1; accent-color: var(--main-red); height: 8px; }
+    .value-display { 
+      font-size: 20px; font-weight: bold; color: var(--orange); 
+      background: #000; padding: 5px 15px; border-radius: 4px; border: 1px solid var(--border-color);
+      min-width: 40px; text-align: center;
+    }
+
+    .preset-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+    .preset-btn {
+      background: var(--border-color); color: #fff; border: none;
+      padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px;
+    }
+    .preset-btn:hover { background: #405785; }
+    
+    .visual-area { height: 200px; background: #000; border-radius: 6px; border: 1px solid var(--border-color); position: relative; margin-bottom: 15px; }
+    canvas { width: 100%; height: 100%; display: block; }
+    
+    .code-area { flex: 1; display: flex; flex-direction: column; }
+    .code-header { font-size: 14px; color: var(--main-red); margin-bottom: 10px; font-weight: bold; }
+    pre {
+      background: #000; padding: 15px; border-radius: 6px; overflow-x: auto;
+      font-family: 'Consolas', monospace; font-size: 14px; color: #cbd5e1;
+      border: 1px solid var(--border-color); flex: 1; margin: 0; white-space: pre-wrap;
+    }
+    .hl { color: var(--orange); font-weight: bold; background: rgba(255, 152, 0, 0.15); padding: 0 4px; border-radius: 3px; }
+    
+    .action-btns { display: flex; gap: 10px; margin-top: 15px; }
+    .action-btn {
+      flex: 1; padding: 12px; font-size: 16px; font-weight: bold; cursor: pointer;
+      border-radius: 4px; border: none;
+    }
+    .btn-copy { background: var(--main-red); color: #fff; }
+    .btn-copy:hover { background: var(--main-red-hover); }
+    .btn-download { background: var(--orange); color: #000; }
+    .btn-download:hover { background: #cc7a00; }
+    .btn-reset { background: transparent; color: var(--text-muted); border: 1px solid var(--border-color); }
+    .btn-reset:hover { background: var(--border-color); color: #fff; }
+
+    .hidden { display: none !important; }
+    ruby { font-size: 1.1em; }
+    rt { font-size: 0.6em; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>EDU-BOTIX // M03 DRIVE LAB</h1>
+      <div class="catch-copy">荷物を守って、最速の走りを作れ。</div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-step1" onclick="setStep(1)">STEP 1 走りの<ruby>調整<rt>ちょうせい</rt></ruby></button>
+      <button class="tab-btn" id="tab-step2" onclick="setStep(2)">STEP 2 自動ブレーキ</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- 左パネル：設定 -->
+    <div class="panel">
+      
+      <!-- STEP 1 専用エリア -->
+      <div id="area-step1">
+        <h2>モーターのパワーを決めよう</h2>
+        <div class="desc">
+          ※<ruby>PWM<rt>ピー・ダブリュー・エム</rt></ruby>：モーターのパワーを細かく変える仕組み
+        </div>
+        
+        <div class="preset-btns" style="margin-bottom: 20px;">
+          <button class="preset-btn" onclick="applyPreset(120, 2, 3, 3)">ゆっくりモード</button>
+          <button class="preset-btn" onclick="applyPreset(180, 5, 5, 3)">バランスモード</button>
+          <button class="preset-btn" onclick="applyPreset(255, 20, 15, 3)">スピードモード</button>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label"><ruby>最高速度<rt>さいこうそくど</rt></ruby></div>
+          <div class="desc">ロボットが目指す最高のパワーです。数字を大きくすると速くなります。</div>
+          <div class="slider-container">
+            <input type="range" id="inp-targetSpeed" min="80" max="255" step="5">
+            <div class="value-display" id="val-targetSpeed">180</div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label"><ruby>加速<rt>かそく</rt></ruby>レベル</div>
+          <div class="desc">最高速度まで、どれくらい素早く加速するかを決めます。</div>
+          <div class="slider-container">
+            <input type="range" id="inp-accel" min="1" max="20" step="1">
+            <div class="value-display" id="val-accel">5</div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label"><ruby>減速<rt>げんそく</rt></ruby>レベル</div>
+          <div class="desc">ロボットが、どれくらい素早くスピードを落として止まるかを決めます。</div>
+          <div class="slider-container">
+            <input type="range" id="inp-decel" min="1" max="20" step="1">
+            <div class="value-display" id="val-decel">5</div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">走る時間（秒）</div>
+          <div class="desc">最高速度になってから、何秒走るかを決めます。</div>
+          <div class="slider-container">
+            <input type="range" id="inp-time" min="1" max="10" step="1">
+            <div class="value-display" id="val-time">3</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2 専用エリア -->
+      <div id="area-step2" class="hidden">
+        <h2>自動ブレーキのルールを決めよう</h2>
+        <div class="desc">
+          <ruby>超音波<rt>ちょうおんぱ</rt></ruby>センサーを使って、壁にぶつかる前に自動で<ruby>減速<rt>げんそく</rt></ruby>するルールを追加します。<br>
+          ※スピードのルールはSTEP 1のものがそのまま使われます。
+        </div>
+
+        <div class="control-group">
+          <div class="control-label"><ruby>停止距離<rt>ていしきょり</rt></ruby>（cm）</div>
+          <div class="desc">壁がこの距離まで近づくと、ロボットが自動で減速を始めます。</div>
+          <div class="slider-container">
+            <input type="range" id="inp-stopDist" min="10" max="50" step="5">
+            <div class="value-display" id="val-stopDist">20</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右パネル：プレビューとコード -->
+    <div class="panel code-area">
+      <div class="visual-area">
+        <canvas id="viewCanvas"></canvas>
+      </div>
+      
+      <div class="code-header">色がついている行が、キミが決めた設定です。</div>
+      <pre id="code-box"></pre>
+      
+      <div class="action-btns">
+        <button class="action-btn btn-copy" onclick="copyCode()">コードをコピー</button>
+        <button class="action-btn btn-download" onclick="downloadCode()">.inoファイルを保存</button>
+        <button class="action-btn btn-reset" onclick="resetDefaults()">最初の設定に戻す</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // --- 1. ピン番号設定 ---
+    // ※ 開発者はここの番号を変更すれば、すべてのコードへ反映されます。
+    const BOARD_CONFIG = {
+      buttonPin: 4,
+      standbyPin: 13,
+      motorAIn1Pin: 33,
+      motorAIn2Pin: 25,
+      motorAPwmPin: 32,
+      motorBIn1Pin: 26,
+      motorBIn2Pin: 27,
+      motorBPwmPin: 14,
+      ultrasonicTriggerPin: 5,
+      ultrasonicEchoPin: 18
+    };
+
+    // --- 2. 状態管理 ---
+    let currentStep = 1;
+    const defaultState = {
+      targetSpeed: 180,
+      acceleration: 5,
+      deceleration: 5,
+      runTimeSeconds: 3,
+      stopDistanceCm: 20
+    };
+    let state = { ...defaultState };
+
+    // UI要素の取得
+    const ui = {
+      speedInp: document.getElementById('inp-targetSpeed'), speedVal: document.getElementById('val-targetSpeed'),
+      accelInp: document.getElementById('inp-accel'), accelVal: document.getElementById('val-accel'),
+      decelInp: document.getElementById('inp-decel'), decelVal: document.getElementById('val-decel'),
+      timeInp:  document.getElementById('inp-time'),  timeVal:  document.getElementById('val-time'),
+      distInp:  document.getElementById('inp-stopDist'), distVal: document.getElementById('val-stopDist')
+    };
+
+    // イベントの登録
+    function bindInput(inputEl, valEl, key) {
+      inputEl.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        state[key] = val;
+        valEl.innerText = val;
+        updateView();
+      });
+    }
+    bindInput(ui.speedInp, ui.speedVal, 'targetSpeed');
+    bindInput(ui.accelInp, ui.accelVal, 'acceleration');
+    bindInput(ui.decelInp, ui.decelVal, 'deceleration');
+    bindInput(ui.timeInp,  ui.timeVal,  'runTimeSeconds');
+    bindInput(ui.distInp,  ui.distVal,  'stopDistanceCm');
+
+    window.addEventListener('resize', drawVisual);
+
+    // --- 3. 画面の更新 ---
+    function setStep(step) {
+      currentStep = step;
+      document.getElementById('tab-step1').classList.toggle('active', step === 1);
+      document.getElementById('tab-step2').classList.toggle('active', step === 2);
+      document.getElementById('area-step1').classList.toggle('hidden', step === 2);
+      document.getElementById('area-step2').classList.toggle('hidden', step === 1);
+      updateView();
+    }
+
+    function applyPreset(spd, acc, dec, time) {
+      state.targetSpeed = spd; state.acceleration = acc; state.deceleration = dec; state.runTimeSeconds = time;
+      syncUI(); updateView();
+    }
+
+    function resetDefaults() {
+      state = { ...defaultState };
+      syncUI(); updateView();
+    }
+
+    function syncUI() {
+      ui.speedInp.value = state.targetSpeed; ui.speedVal.innerText = state.targetSpeed;
+      ui.accelInp.value = state.acceleration; ui.accelVal.innerText = state.acceleration;
+      ui.decelInp.value = state.deceleration; ui.decelVal.innerText = state.deceleration;
+      ui.timeInp.value  = state.runTimeSeconds; ui.timeVal.innerText  = state.runTimeSeconds;
+      ui.distInp.value  = state.stopDistanceCm; ui.distVal.innerText  = state.stopDistanceCm;
+    }
+
+    function updateView() {
+      drawVisual();
+      const codeHtml = currentStep === 1 
+        ? generateDriveCode(state, BOARD_CONFIG) 
+        : generateRuleBrakeCode(state, BOARD_CONFIG);
+      document.getElementById('code-box').innerHTML = codeHtml;
+    }
+
+    // --- 4. グラフと図の描画 (Canvas) ---
+    function drawVisual() {
+      const cvs = document.getElementById('viewCanvas');
+      const ctx = cvs.getContext('2d');
+      cvs.width = cvs.parentElement.clientWidth;
+      cvs.height = cvs.parentElement.clientHeight;
+      const w = cvs.width; const h = cvs.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (currentStep === 1) {
+        // STEP1: モーターパワーのグラフ
+        const padX = 20, padY = 20;
+        const graphW = w - padX * 2; const graphH = h - padY * 2;
+        const maxP = 255;
+        const getY = val => padY + graphH - (val / maxP * graphH);
+        
+        ctx.strokeStyle = '#2e4063'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(padX, padY); ctx.lineTo(padX, h - padY); ctx.lineTo(w - padX, h - padY); ctx.stroke();
+
+        const timeAccel = (state.targetSpeed / state.acceleration) * 2;
+        const timeDecel = (state.targetSpeed / state.deceleration) * 2;
+        const timeRun = state.runTimeSeconds * 30; // 描画用の縮尺
+        
+        const totalW = timeAccel + timeRun + timeDecel;
+        const getX = t => padX + (t / totalW * graphW);
+
+        ctx.beginPath();
+        ctx.moveTo(getX(0), getY(0));
+        ctx.lineTo(getX(timeAccel), getY(state.targetSpeed));
+        ctx.lineTo(getX(timeAccel + timeRun), getY(state.targetSpeed));
+        ctx.lineTo(getX(totalW), getY(0));
+        
+        ctx.strokeStyle = '#ff3344'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 51, 68, 0.2)';
+        ctx.lineTo(getX(totalW), getY(0));
+        ctx.lineTo(getX(0), getY(0));
+        ctx.fill();
+
+        ctx.fillStyle = '#94a3b8'; ctx.font = '12px sans-serif';
+        ctx.fillText('モーターパワー', padX, padY - 5);
+        ctx.fillText('時間', w - padX - 30, h - padY + 15);
+      } else {
+        // STEP2: ロボットと壁の図
+        const padX = 30;
+        const wallX = w - padX;
+        
+        // 壁
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(wallX, 20, 20, h - 40);
+        ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif'; ctx.fillText('壁', wallX + 5, h/2);
+
+        // 停止ライン (stopDistanceCmを画面幅にマッピング)
+        const maxDist = 80;
+        const stopPixel = (state.stopDistanceCm / maxDist) * (w - padX * 2);
+        const lineX = wallX - stopPixel;
+
+        ctx.strokeStyle = '#ff9800'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+        ctx.beginPath(); ctx.moveTo(lineX, 20); ctx.lineTo(lineX, h - 20); ctx.stroke();
+        ctx.setLineDash([]);
+        
+        ctx.fillStyle = '#ff9800'; ctx.fillText(`減速ライン (${state.stopDistanceCm}cm)`, lineX - 110, h - 30);
+
+        // ロボット (赤に変更)
+        const robotX = padX;
+        ctx.fillStyle = '#ff3344'; ctx.fillRect(robotX, h/2 - 15, 40, 30);
+        ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.fillText('🤖', robotX + 5, h/2 + 7);
+        
+        // 矢印
+        ctx.fillStyle = '#e2e8f0'; ctx.font = '16px sans-serif';
+        ctx.fillText('→ → →', robotX + 50, h/2 + 5);
+      }
+    }
+
+    // --- 5. コード生成関数 (UIと分離) ---
+    function hl(val) { return `<span class="hl">${val}</span>`; }
+    function stripHl(htmlStr) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = htmlStr;
+      return tmp.textContent || tmp.innerText || "";
+    }
+
+    function generateDriveCode(s, b) {
+      return `// EDUBOTIX_M03_DRIVE.ino
+const int PIN_BUTTON = ${b.buttonPin};       // スタート・ストップボタン
+const int PIN_STBY = ${b.standbyPin};        // モーター準備OKピン
+
+const int PIN_AIN1 = ${b.motorAIn1Pin};       // 左モーター方向1
+const int PIN_AIN2 = ${b.motorAIn2Pin};       // 左モーター方向2
+const int PIN_BIN1 = ${b.motorBIn1Pin};       // 右モーター方向1
+const int PIN_BIN2 = ${b.motorBIn2Pin};       // 右モーター方向2
+const int PIN_MOTOR_L_PWM = ${b.motorAPwmPin}; // 左モーターPWM（PWMA）
+const int PIN_MOTOR_R_PWM = ${b.motorBPwmPin}; // 右モーターPWM（PWMB）
+
+// --- キミが決めた設定 ---
+const int TARGET_SPEED = ${hl(s.targetSpeed)};
+const int ACCELERATION = ${hl(s.acceleration)};
+const int DECELERATION = ${hl(s.deceleration)};
+const int RUN_TIME_SECONDS = ${hl(s.runTimeSeconds)};
+
+enum State { WAITING, ACCELERATING, RUNNING, DECELERATING, STOPPED };
+State currentState = WAITING;
+
+int currentSpeed = 0;
+bool lastButtonState = HIGH;
+unsigned long stateStartTime = 0;
+unsigned long lastUpdate = 0;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_BUTTON, INPUT_PULLUP);
+  pinMode(PIN_STBY, OUTPUT);
+  pinMode(PIN_AIN1, OUTPUT);
+  pinMode(PIN_AIN2, OUTPUT);
+  pinMode(PIN_BIN1, OUTPUT);
+  pinMode(PIN_BIN2, OUTPUT);
+
+  // ESP32 Arduino Core 3.x対応のPWM設定
+  ledcAttach(PIN_MOTOR_L_PWM, 20000, 8);
+  ledcAttach(PIN_MOTOR_R_PWM, 20000, 8);
+
+  digitalWrite(PIN_STBY, HIGH);
+
+  // AO1/AO2・BO1/BO2が「－/＋」になる前進方向
+  digitalWrite(PIN_AIN1, LOW);
+  digitalWrite(PIN_AIN2, HIGH);
+  digitalWrite(PIN_BIN1, LOW);
+  digitalWrite(PIN_BIN2, HIGH);
+
+  ledcWrite(PIN_MOTOR_L_PWM, 0);
+  ledcWrite(PIN_MOTOR_R_PWM, 0);
+
+  Serial.println("SYSTEM READY: ボタンを1回押すとスタート！");
+}
+
+void loop() {
+  bool currentButtonState = digitalRead(PIN_BUTTON);
+
+  // 1回押すとスタート。走行中にもう1回押すと減速停止
+  if (lastButtonState == HIGH && currentButtonState == LOW) {
+    if (currentState == WAITING || currentState == STOPPED) {
+      currentState = ACCELERATING;
+      Serial.println("スタート！加速します。");
+    }
+    else if (currentState == ACCELERATING || currentState == RUNNING) {
+      currentState = DECELERATING;
+      Serial.println("停止ボタン：減速します。");
+    }
+    delay(30);
+  }
+  lastButtonState = currentButtonState;
+
+  if (millis() - lastUpdate >= 20) {
+    lastUpdate = millis();
+
+    if (currentState == ACCELERATING) {
+      currentSpeed += ACCELERATION;
+      if (currentSpeed >= TARGET_SPEED) {
+        currentSpeed = TARGET_SPEED;
+        currentState = RUNNING;
+        stateStartTime = millis();
+        Serial.println("最高速度になりました！");
+      }
+    }
+    else if (currentState == RUNNING) {
+      if (millis() - stateStartTime >= (RUN_TIME_SECONDS * 1000UL)) {
+        currentState = DECELERATING;
+        Serial.println("時間です。減速します。");
+      }
+    }
+    else if (currentState == DECELERATING) {
+      currentSpeed -= DECELERATION;
+      if (currentSpeed <= 0) {
+        currentSpeed = 0;
+        currentState = STOPPED;
+        Serial.println("停止しました。次のスタートを待っています。");
+      }
+    }
+
+    ledcWrite(PIN_MOTOR_L_PWM, currentSpeed);
+    ledcWrite(PIN_MOTOR_R_PWM, currentSpeed);
+  }
+}`;
+    }
+
+    function generateRuleBrakeCode(s, b) {
+      return `// EDUBOTIX_M03_RULE_BRAKE.ino
+const int PIN_BUTTON = ${b.buttonPin};
+const int PIN_STBY = ${b.standbyPin};
+
+const int PIN_AIN1 = ${b.motorAIn1Pin};
+const int PIN_AIN2 = ${b.motorAIn2Pin};
+const int PIN_BIN1 = ${b.motorBIn1Pin};
+const int PIN_BIN2 = ${b.motorBIn2Pin};
+const int PIN_MOTOR_L_PWM = ${b.motorAPwmPin};
+const int PIN_MOTOR_R_PWM = ${b.motorBPwmPin};
+
+// 超音波センサーのピン
+const int TRIG_PIN = ${b.ultrasonicTriggerPin};
+const int ECHO_PIN = ${b.ultrasonicEchoPin};
+
+// --- キミが決めた設定 ---
+const int TARGET_SPEED = ${hl(s.targetSpeed)};
+const int ACCELERATION = ${hl(s.acceleration)};
+const int DECELERATION = ${hl(s.deceleration)};
+const int STOP_DISTANCE_CM = ${hl(s.stopDistanceCm)};
+
+enum State { WAITING, ACCELERATING, RUNNING, DECELERATING, STOPPED };
+State currentState = WAITING;
+
+int currentSpeed = 0;
+bool lastButtonState = HIGH;
+unsigned long lastUpdate = 0;
+unsigned long lastSensorCheck = 0;
+float currentDistance = 999;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_BUTTON, INPUT_PULLUP);
+  pinMode(PIN_STBY, OUTPUT);
+  pinMode(PIN_AIN1, OUTPUT);
+  pinMode(PIN_AIN2, OUTPUT);
+  pinMode(PIN_BIN1, OUTPUT);
+  pinMode(PIN_BIN2, OUTPUT);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  // ESP32 Arduino Core 3.x対応のPWM設定
+  ledcAttach(PIN_MOTOR_L_PWM, 20000, 8);
+  ledcAttach(PIN_MOTOR_R_PWM, 20000, 8);
+
+  digitalWrite(PIN_STBY, HIGH);
+
+  // AO1/AO2・BO1/BO2が「－/＋」になる前進方向
+  digitalWrite(PIN_AIN1, LOW);
+  digitalWrite(PIN_AIN2, HIGH);
+  digitalWrite(PIN_BIN1, LOW);
+  digitalWrite(PIN_BIN2, HIGH);
+
+  ledcWrite(PIN_MOTOR_L_PWM, 0);
+  ledcWrite(PIN_MOTOR_R_PWM, 0);
+
+  Serial.println("SYSTEM READY: ボタンを1回押すと自動ブレーキ走行スタート！");
+}
+
+float checkDistance() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  unsigned long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  if (duration == 0) return 999;
+  return (duration * 0.0343) / 2.0;
+}
+
+void loop() {
+  bool currentButtonState = digitalRead(PIN_BUTTON);
+
+  // 1回押すとスタート。走行中にもう1回押すと手動停止
+  if (lastButtonState == HIGH && currentButtonState == LOW) {
+    if (currentState == WAITING || currentState == STOPPED) {
+      currentState = ACCELERATING;
+      Serial.println("スタート！加速します。");
+    }
+    else if (currentState == ACCELERATING || currentState == RUNNING) {
+      currentState = DECELERATING;
+      Serial.println("停止ボタン：減速します。");
+    }
+    delay(30);
+  }
+  lastButtonState = currentButtonState;
+
+  // センサーで距離を測る（50ミリ秒に1回）
+  if (millis() - lastSensorCheck >= 50) {
+    lastSensorCheck = millis();
+
+    if (currentState == ACCELERATING || currentState == RUNNING) {
+      currentDistance = checkDistance();
+      Serial.print("距離: ");
+      Serial.print(currentDistance);
+      Serial.println(" cm");
+
+      if (currentDistance <= STOP_DISTANCE_CM) {
+        currentState = DECELERATING;
+        Serial.println("壁が近い！ブレーキをかけます！");
+      }
+    }
+  }
+
+  if (millis() - lastUpdate >= 20) {
+    lastUpdate = millis();
+
+    if (currentState == ACCELERATING) {
+      currentSpeed += ACCELERATION;
+      if (currentSpeed >= TARGET_SPEED) {
+        currentSpeed = TARGET_SPEED;
+        currentState = RUNNING;
+      }
+    }
+    else if (currentState == DECELERATING) {
+      currentSpeed -= DECELERATION;
+      if (currentSpeed <= 0) {
+        currentSpeed = 0;
+        currentState = STOPPED;
+        Serial.println("安全に停止しました。");
+      }
+    }
+
+    ledcWrite(PIN_MOTOR_L_PWM, currentSpeed);
+    ledcWrite(PIN_MOTOR_R_PWM, currentSpeed);
+  }
+}`;
+    }
+
+    // --- 6. アクションボタン機能 ---
+    function copyCode() {
+      const codeHtml = document.getElementById('code-box').innerHTML;
+      const cleanCode = stripHl(codeHtml);
+      navigator.clipboard.writeText(cleanCode).then(() => {
+        alert("コピーできました！Arduino IDEに貼り付けよう。");
+      });
+    }
+
+    function downloadCode() {
+      const codeHtml = document.getElementById('code-box').innerHTML;
+      const cleanCode = stripHl(codeHtml);
+      const blob = new Blob([cleanCode], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = currentStep === 1 ? "EDUBOTIX_M03_DRIVE.ino" : "EDUBOTIX_M03_RULE_BRAKE.ino";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // 初期化
+    syncUI();
+    updateView();
+  </script>
+</body>
+</html>
