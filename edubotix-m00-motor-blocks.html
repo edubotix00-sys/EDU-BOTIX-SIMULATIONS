@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EDU-BOTIX｜モーターを動かす3つの命令</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f8ff;color:#16304b;font-family:"Noto Sans JP","Yu Gothic",Meiryo,sans-serif}
+main{max-width:680px;margin:auto;padding:28px 20px 32px}
+.brand{margin:0 0 12px;font-size:12px;font-weight:800;letter-spacing:.14em;color:#1762bb}
+h1{font-size:clamp(19px,4vw,25px);margin:0 0 8px}
+.lead{font-size:14px;margin:0 0 24px;color:#456079}
+ol{list-style:none;padding:0;margin:0 0 22px;counter-reset:step}
+li{position:relative;isolation:isolate;margin:0;padding:22px 18px 20px;background:#1462c7;border:2px solid #0c4da5;border-radius:8px;color:white;min-height:95px}
+li+li{margin-top:0}
+li:not(:last-child)::after{content:"";position:absolute;z-index:3;bottom:-12px;left:34px;width:42px;height:14px;background:#1462c7;border:2px solid #0c4da5;border-top:0;border-radius:0 0 7px 7px}
+.command{font-size:clamp(16px,3.7vw,23px);font-weight:750;line-height:1.8}
+.value{display:inline-block;background:#fff;color:#124b91;border:1px solid #d4e4fa;border-radius:30px;padding:0 17px;line-height:1.55;min-width:62px;text-align:center}
+.hint{display:block;font-size:12px;margin-top:5px;color:#e3efff;letter-spacing:.03em}
+.note{font-size:12px;line-height:1.8;margin:0;color:#456079}
+@media(max-width:360px){main{padding:20px 12px}li{padding:20px 12px 16px}.value{padding:0 10px;min-width:46px}}
+</style>
+</head>
+<body>
+<main aria-labelledby="title">
+<p class="brand">EDU-BOTIX / M00</p>
+<h1 id="title">モーターを動かす3つの命令</h1>
+<p class="lead">上から順番に、命令をつなげよう。</p>
+<ol aria-label="モーターへの命令の順番">
+<li><div class="command">モーターの準備を <span class="value">OK</span> にする</div><span class="hint">① 準備OKの合図 ／ STBY</span></li>
+<li><div class="command">方向を <span class="value">前</span> にする</div><span class="hint">② 回る方向 ／ IN</span></li>
+<li><div class="command">パワーを <span class="value">150</span> にする</div><span class="hint">③ パワー ／ PWM</span></li>
+</ol>
+<p class="note">これは命令の順番を表した図です。この図からロボットは動きません。<br>次のミッションで、本物のコードに翻訳してみよう！</p>
+</main>
+</body>
+</html>
