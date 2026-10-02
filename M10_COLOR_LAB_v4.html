@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M10 COLOR LAB | EDU-BOTIX</title>
+<style>
+:root{font-family:system-ui,"Noto Sans JP",sans-serif;color:#f8fafc;background:#071425}*{box-sizing:border-box}body{margin:0;padding:18px}main{max-width:1100px;margin:auto}.tag{display:inline-block;background:#ef526c;color:white;padding:7px 15px;border-radius:99px;font-weight:800}h1{font-size:clamp(25px,5vw,42px);margin:12px 0 4px}h2{font-size:21px;margin:0 0 12px}p{color:#cfdeec;line-height:1.7}.card{border:1px solid #29435b;background:#10243b;border-radius:20px;padding:18px;margin-top:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.tableWrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{border-bottom:1px solid #37526a;padding:10px 7px;text-align:left}th{color:#a9c8dd}td input{width:82px;border:1px solid #66849a;border-radius:7px;background:#071425;color:white;padding:7px;font:inherit}.status{font-weight:750;color:#dfeef8}.status.ok{color:#5be0bb}.status.warn{color:#ffcf70}.hint{background:#0b3141;border-left:4px solid #64d6d5;padding:12px;border-radius:8px}button{border:0;border-radius:10px;padding:11px 15px;font:700 16px system-ui,sans-serif;cursor:pointer;background:#ef526c;color:white;margin-right:8px}button.secondary{background:#265575}button:disabled{opacity:.45;cursor:not-allowed}textarea{width:100%;height:320px;background:#04111e;color:#d6f5e7;border:1px solid #496078;border-radius:10px;padding:12px;font:13px/1.45 ui-monospace,monospace;resize:vertical}@media(max-width:760px){.grid{grid-template-columns:1fr}body{padding:12px}.card{padding:14px}}
+</style>
+</head>
+<body><main>
+<span class="tag">MISSION 10 · COLOR LAB</span>
+<h1>4色をロボットにおぼえさせよう</h1>
+<p>センサーで測ったR・G・Bの数字を入れよう。白・赤・青・黄の4色を、ロボットの「見本」としておぼえさせます。</p>
+
+<section class="card">
+<h2>① 白 → 赤 → 青 → 黄の数字を入れよう</h2>
+<p>Arduino IDEのシリアルモニターに出た <b>R・G・Bの％</b> を入れます。まず白い紙から入れてね。</p>
+<div class="tableWrap"><table>
+<thead><tr><th>紙</th><th>赤 R％</th><th>緑 G％</th><th>青 B％</th><th>できた？</th></tr></thead>
+<tbody id="samples"></tbody>
+</table></div>
+<p class="hint">紙とセンサーの高さは、4色とも同じにしよう。部屋の明るさを大きく変えたときは、白からもう一度測ってね。</p>
+</section>
+
+<div class="grid">
+<section class="card">
+<h2>② ロボットはどうやって色を決める？</h2>
+<p>新しい色を見つけたら、さっきおぼえた <b>赤・青・黄・白の4つの見本</b> とくらべます。</p>
+<p>そして、R・G・Bの数字が <b>いちばん似ている見本</b> を、その色だと決めます。</p>
+<p id="quality" class="status"></p>
+</section>
+
+<section class="card">
+<h2>③ 4色をおぼえたらコードを作ろう</h2>
+<p>4枚すべての数字が入ると、ロボット用のコードを作れます。</p>
+<button id="generate" disabled>この4色でコードを作る</button>
+<button id="copy" class="secondary">コードをコピー</button>
+<p id="message" role="status"></p>
+</section>
+</div>
+
+<section class="card"><h2>できたプログラム</h2><textarea id="code" readonly></textarea></section>
+</main>
+<script>
+const NAMES=[['white','白い紙'],['red','赤い紙'],['blue','青い紙'],['yellow','黄色い紙']];
+const body=document.getElementById('samples');
+body.innerHTML=NAMES.map(([key,name])=>`<tr><th scope="row">${name}</th>${['r','g','b'].map(c=>`<td><input id="${key}_${c}" type="number" min="0" max="100" step="0.1" inputmode="decimal"></td>`).join('')}<td><span id="result_${key}" class="status">まだ</span></td></tr>`).join('');
+
+function sample(key){
+  const vals=['r','g','b'].map(c=>document.getElementById(key+'_'+c).value);
+  if(vals.some(v=>v===''))return null;
+  const n=vals.map(Number);
+  if(n.some(v=>!Number.isFinite(v)||v<=0||v>100))return {error:'0より大きい数字を入れてね'};
+  const sum=n[0]+n[1]+n[2];
+  if(Math.abs(sum-100)>2.0)return {error:'3つの合計を100％に近づけてね'};
+  return {r:n[0],g:n[1],b:n[2]};
+}
+function calibrate(v,w){
+  const r=v.r/w.r,g=v.g/w.g,b=v.b/w.b;
+  const s=r+g+b;
+  return {r:100*r/s,g:100*g/s,b:100*b/s};
+}
+function d2(a,b){return (a.r-b.r)**2+(a.g-b.g)**2+(a.b-b.b)**2;}
+function fmt(v){return `R=${v.r.toFixed(1)} G=${v.g.toFixed(1)} B=${v.b.toFixed(1)}`;}
+
+function refresh(){
+  const w=sample('white');
+  let all=true;
+  let profiles={};
+
+  for(const [key] of NAMES){
+    const e=document.getElementById('result_'+key);
+    const v=sample(key);
+    if(!v){e.textContent='まだ';e.className='status';all=false;continue;}
+    if(v.error){e.textContent=v.error;e.className='status warn';all=false;continue;}
+    if(!w||w.error){e.textContent=key==='white'?'白を入れてね':'先に白から';e.className='status';all=false;continue;}
+    const c=calibrate(v,w);
+    profiles[key]=c;
+    e.textContent='OK';
+    e.className='status ok';
+  }
+
+  const gen=document.getElementById('generate');
+  gen.disabled=!all;
+
+  const q=document.getElementById('quality');
+  if(all){
+    const keys=['red','blue','yellow','white'];
+    let min=999, pair='';
+    for(let i=0;i<keys.length;i++)for(let j=i+1;j<keys.length;j++){
+      const d=Math.sqrt(d2(profiles[keys[i]],profiles[keys[j]]));
+      if(d<min){min=d;pair=keys[i]+' / '+keys[j];}
+    }
+    q.textContent=min<6 ? '4色の数字が少し似ています。紙との高さをそろえて、もう一度測ってみよう。' : '4色を見分けられそうです。コードを作ろう！';
+    q.className='status '+(min<6?'warn':'ok');
+  }else{
+    q.textContent='4枚の数字を入れると、コードを作れます。';
+    q.className='status';
+  }
+
+  document.getElementById('code').value='';
+  document.getElementById('message').textContent='';
+}
+document.querySelectorAll('input').forEach(e=>e.addEventListener('input',refresh));
+
+const TEMPLATE="// M10 COLOR CALIBRATION LAB creates this sketch from YOUR measurements.\n// TCS34725: VCC/VIN->3V3, GND->GND, SDA->GPIO21, SCL->GPIO22.\n// OLED may share the same I2C lines.\n// Requires the \"Adafruit TCS34725\" library.\n// The classifier first corrects R/G/B using the measured white paper,\n// then chooses the nearest reference among RED / BLUE / YELLOW / WHITE.\n\n#include <Wire.h>\n#include <Adafruit_TCS34725.h>\n\nAdafruit_TCS34725 tcs(\n  TCS34725_INTEGRATIONTIME_50MS,\n  TCS34725_GAIN_4X\n);\n\nconst int BUTTON_PIN = 4;\nconst int STBY_PIN = 13, AIN1_PIN = 33, AIN2_PIN = 25;\nconst int BIN1_PIN = 26, BIN2_PIN = 27;\nconst int LEFT_PWM_PIN = 32, RIGHT_PWM_PIN = 14;\n\n// White-paper measurement before correction.\nconst float WHITE_R = {{WHITE_R}};\nconst float WHITE_G = {{WHITE_G}};\nconst float WHITE_B = {{WHITE_B}};\n\n// Corrected reference colors made in the LAB.\nconst float RED_REF_R = {{RED_REF_R}};\nconst float RED_REF_G = {{RED_REF_G}};\nconst float RED_REF_B = {{RED_REF_B}};\n\nconst float BLUE_REF_R = {{BLUE_REF_R}};\nconst float BLUE_REF_G = {{BLUE_REF_G}};\nconst float BLUE_REF_B = {{BLUE_REF_B}};\n\nconst float YELLOW_REF_R = {{YELLOW_REF_R}};\nconst float YELLOW_REF_G = {{YELLOW_REF_G}};\nconst float YELLOW_REF_B = {{YELLOW_REF_B}};\n\nconst float WHITE_REF_R = {{WHITE_REF_R}};\nconst float WHITE_REF_G = {{WHITE_REF_G}};\nconst float WHITE_REF_B = {{WHITE_REF_B}};\n\nconst int NORMAL_POWER = 105;\nconst int BLUE_POWER = 145;\nconst int TURN_POWER = 120;\nconst unsigned long RED_STOP_MS = 3000;\nconst unsigned long YELLOW_TURN_MS = 450;\n\nstruct ColorReading {\n  float red, green, blue;\n  bool valid;\n};\n\nenum ColorName { RED, BLUE, YELLOW, WHITE };\nenum Action { FORWARD, RED_WAIT, YELLOW_TURN };\n\nbool running = false;\nbool lastRawButton = HIGH, stableButton = HIGH;\nunsigned long buttonChangedAt = 0;\nbool redUsed = false, yellowUsed = false;\nAction action = FORWARD;\nunsigned long actionEndAt = 0;\n\nColorReading readColor() {\n  uint32_t rs = 0, gs = 0, bs = 0, cs = 0;\n\n  for (int i = 0; i < 3; i++) {\n    uint16_t r, g, b, c;\n    tcs.getRawData(&r, &g, &b, &c);\n    rs += r;\n    gs += g;\n    bs += b;\n    cs += c;\n  }\n\n  float r = rs / 3.0f;\n  float g = gs / 3.0f;\n  float b = bs / 3.0f;\n  float c = cs / 3.0f;\n\n  float sum = r + g + b;\n  if (sum <= 0 || c <= 0) return {0, 0, 0, false};\n\n  return {\n    100.0f * r / sum,\n    100.0f * g / sum,\n    100.0f * b / sum,\n    true\n  };\n}\n\nColorReading correctWithWhite(ColorReading in) {\n  if (!in.valid || WHITE_R <= 0 || WHITE_G <= 0 || WHITE_B <= 0) {\n    return {0, 0, 0, false};\n  }\n\n  float r = in.red / WHITE_R;\n  float g = in.green / WHITE_G;\n  float b = in.blue / WHITE_B;\n  float sum = r + g + b;\n\n  if (sum <= 0) return {0, 0, 0, false};\n\n  return {\n    100.0f * r / sum,\n    100.0f * g / sum,\n    100.0f * b / sum,\n    true\n  };\n}\n\nfloat distanceSq(ColorReading c, float r, float g, float b) {\n  float dr = c.red - r;\n  float dg = c.green - g;\n  float db = c.blue - b;\n  return dr * dr + dg * dg + db * db;\n}\n\nColorName judge(ColorReading raw) {\n  ColorReading c = correctWithWhite(raw);\n\n  float best = distanceSq(c, RED_REF_R, RED_REF_G, RED_REF_B);\n  ColorName answer = RED;\n\n  float dBlue = distanceSq(c, BLUE_REF_R, BLUE_REF_G, BLUE_REF_B);\n  if (dBlue < best) {\n    best = dBlue;\n    answer = BLUE;\n  }\n\n  float dYellow = distanceSq(c, YELLOW_REF_R, YELLOW_REF_G, YELLOW_REF_B);\n  if (dYellow < best) {\n    best = dYellow;\n    answer = YELLOW;\n  }\n\n  float dWhite = distanceSq(c, WHITE_REF_R, WHITE_REF_G, WHITE_REF_B);\n  if (dWhite < best) {\n    answer = WHITE;\n  }\n\n  return answer;\n}\n\nvoid stopMotors() {\n  ledcWrite(LEFT_PWM_PIN, 0);\n  ledcWrite(RIGHT_PWM_PIN, 0);\n  digitalWrite(STBY_PIN, LOW);\n  digitalWrite(AIN1_PIN, LOW); digitalWrite(AIN2_PIN, LOW);\n  digitalWrite(BIN1_PIN, LOW); digitalWrite(BIN2_PIN, LOW);\n}\n\nvoid drive(int leftPower, int rightPower, bool turnRight = false) {\n  digitalWrite(AIN1_PIN, LOW); digitalWrite(AIN2_PIN, HIGH);\n  digitalWrite(BIN1_PIN, turnRight ? HIGH : LOW);\n  digitalWrite(BIN2_PIN, turnRight ? LOW : HIGH);\n  digitalWrite(STBY_PIN, HIGH);\n  ledcWrite(LEFT_PWM_PIN, leftPower);\n  ledcWrite(RIGHT_PWM_PIN, rightPower);\n}\n\nbool buttonPressed() {\n  bool raw = digitalRead(BUTTON_PIN);\n  unsigned long now = millis();\n\n  if (raw != lastRawButton) {\n    lastRawButton = raw;\n    buttonChangedAt = now;\n  }\n\n  if (now - buttonChangedAt >= 35 && raw != stableButton) {\n    stableButton = raw;\n    return stableButton == LOW;\n  }\n\n  return false;\n}\n\nvoid setup() {\n  pinMode(STBY_PIN, OUTPUT);\n  pinMode(AIN1_PIN, OUTPUT); pinMode(AIN2_PIN, OUTPUT);\n  pinMode(BIN1_PIN, OUTPUT); pinMode(BIN2_PIN, OUTPUT);\n  pinMode(BUTTON_PIN, INPUT_PULLUP);\n\n  lastRawButton = stableButton = digitalRead(BUTTON_PIN);\n  Serial.begin(115200);\n\n  bool leftOK = ledcAttach(LEFT_PWM_PIN, 20000, 8);\n  bool rightOK = ledcAttach(RIGHT_PWM_PIN, 20000, 8);\n\n  if (!leftOK || !rightOK) {\n    stopMotors();\n    Serial.println(\"MOTOR SETUP ERROR\");\n    while (true) delay(100);\n  }\n\n  stopMotors();\n  Wire.begin(21, 22);\n\n  if (!tcs.begin()) {\n    stopMotors();\n    Serial.println(\"TCS34725 NOT FOUND: check VCC/GND/SDA/SCL\");\n    while (true) delay(100);\n  }\n\n  Serial.println(\"M10 READY: press the button to start\");\n}\n\nvoid loop() {\n  if (buttonPressed()) {\n    running = !running;\n    action = FORWARD;\n    if (!running) stopMotors();\n  }\n\n  if (!running) {\n    stopMotors();\n    return;\n  }\n\n  ColorReading raw = readColor();\n\n  if (!raw.valid) {\n    stopMotors();\n    running = false;\n    Serial.println(\"COLOR SENSOR ERROR: stopped; check sensor\");\n    return;\n  }\n\n  ColorName color = judge(raw);\n\n  if (color != RED) redUsed = false;\n  if (color != YELLOW) yellowUsed = false;\n\n  unsigned long now = millis();\n\n  if (action != FORWARD) {\n    if ((long)(now - actionEndAt) < 0) {\n      if (action == RED_WAIT) stopMotors();\n      else drive(TURN_POWER, TURN_POWER, true);\n      return;\n    }\n    action = FORWARD;\n  }\n\n  if (color == RED && !redUsed) {\n    redUsed = true;\n    action = RED_WAIT;\n    actionEndAt = now + RED_STOP_MS;\n    stopMotors();\n    Serial.println(\"RED: stop for 3 seconds\");\n  } else if (color == YELLOW && !yellowUsed) {\n    yellowUsed = true;\n    action = YELLOW_TURN;\n    actionEndAt = now + YELLOW_TURN_MS;\n    drive(TURN_POWER, TURN_POWER, true);\n    Serial.println(\"YELLOW: turn right\");\n  } else if (color == BLUE) {\n    drive(BLUE_POWER, BLUE_POWER);\n    Serial.println(\"BLUE: faster\");\n  } else {\n    drive(NORMAL_POWER, NORMAL_POWER);\n  }\n}\n";
+
+document.getElementById('generate').addEventListener('click',()=>{
+  const raw={};
+  for(const [key] of NAMES) raw[key]=sample(key);
+  const w=raw.white;
+  const p={
+    red:calibrate(raw.red,w),
+    blue:calibrate(raw.blue,w),
+    yellow:calibrate(raw.yellow,w),
+    white:calibrate(raw.white,w)
+  };
+  let text=TEMPLATE;
+  const values={
+    WHITE_R:w.r.toFixed(3),WHITE_G:w.g.toFixed(3),WHITE_B:w.b.toFixed(3),
+    RED_REF_R:p.red.r.toFixed(3),RED_REF_G:p.red.g.toFixed(3),RED_REF_B:p.red.b.toFixed(3),
+    BLUE_REF_R:p.blue.r.toFixed(3),BLUE_REF_G:p.blue.g.toFixed(3),BLUE_REF_B:p.blue.b.toFixed(3),
+    YELLOW_REF_R:p.yellow.r.toFixed(3),YELLOW_REF_G:p.yellow.g.toFixed(3),YELLOW_REF_B:p.yellow.b.toFixed(3),
+    WHITE_REF_R:p.white.r.toFixed(3),WHITE_REF_G:p.white.g.toFixed(3),WHITE_REF_B:p.white.b.toFixed(3)
+  };
+  for(const [k,v] of Object.entries(values)) text=text.replaceAll('{{'+k+'}}',v);
+  document.getElementById('code').value=text;
+  document.getElementById('message').textContent='コードができました。全部コピーしてArduino IDEに貼りつけてください。';
+});
+
+document.getElementById('copy').addEventListener('click',async()=>{
+  const e=document.getElementById('code');
+  if(!e.value){document.getElementById('message').textContent='先にコードを作ってください。';return;}
+  try{await navigator.clipboard.writeText(e.value);}
+  catch(err){e.focus();e.select();document.execCommand('copy');}
+  document.getElementById('message').textContent='コピーしました。';
+});
+refresh();
+</script>
+</body></html>
