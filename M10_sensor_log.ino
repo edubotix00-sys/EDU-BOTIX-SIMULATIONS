@@ -1,72 +1,65 @@
-// M10: measure colored paper before deciding any thresholds.
-// TCS3200 at 3V3; S0=GND, S1=3V3 (2% frequency scaling).
-// S2=GPIO19, S3=GPIO23, OUT=GPIO34, OE=GND.
-// Motor battery disconnected; keep the wheels raised while uploading.
+// M10: measure colored paper with TCS34725 before deciding thresholds.
+// Wiring: VCC/VIN->3V3, GND->GND, SDA->GPIO21, SCL->GPIO22.
+// OLED may remain connected to the same I2C bus.
+// Requires the "Adafruit TCS34725" library.
+// Motor battery disconnected while uploading and measuring on the desk.
 
-const int SENSOR_S2 = 19;
-const int SENSOR_S3 = 23;
-const int SENSOR_OUT = 34;
-const unsigned long PULSE_TIMEOUT_US = 8000;
+#include <Wire.h>
+#include <Adafruit_TCS34725.h>
 
-struct Reading {
-  float redHz;
-  float greenHz;
-  float blueHz;
-  bool valid;
-};
-
-unsigned long medianOfThree(unsigned long a, unsigned long b, unsigned long c) {
-  if (a > b) { unsigned long t = a; a = b; b = t; }
-  if (b > c) { unsigned long t = b; b = c; c = t; }
-  if (a > b) { unsigned long t = a; a = b; b = t; }
-  return b;
-}
-
-float readFrequency(bool s2, bool s3) {
-  digitalWrite(SENSOR_S2, s2);
-  digitalWrite(SENSOR_S3, s3);
-  // Throw away one pulse after changing the sensor's color filter.
-  if (!pulseIn(SENSOR_OUT, LOW, PULSE_TIMEOUT_US)) return -1;
-  unsigned long a = pulseIn(SENSOR_OUT, LOW, PULSE_TIMEOUT_US);
-  unsigned long b = pulseIn(SENSOR_OUT, LOW, PULSE_TIMEOUT_US);
-  unsigned long c = pulseIn(SENSOR_OUT, LOW, PULSE_TIMEOUT_US);
-  if (!a || !b || !c) return -1;
-  // The output is approximately a 50% duty square wave.
-  // frequency [Hz] = 1,000,000 / (2 * LOW time [us]).
-  return 500000.0f / medianOfThree(a, b, c);
-}
-
-Reading readColor() {
-  Reading value;
-  value.redHz = readFrequency(LOW, LOW);
-  value.blueHz = readFrequency(LOW, HIGH);
-  value.greenHz = readFrequency(HIGH, HIGH);
-  value.valid = value.redHz > 0 && value.greenHz > 0 && value.blueHz > 0;
-  return value;
-}
+Adafruit_TCS34725 tcs(
+  TCS34725_INTEGRATIONTIME_50MS,
+  TCS34725_GAIN_4X
+);
 
 void setup() {
   Serial.begin(115200);
-  pinMode(SENSOR_S2, OUTPUT);
-  pinMode(SENSOR_S3, OUTPUT);
-  pinMode(SENSOR_OUT, INPUT);
+  Wire.begin(21, 22);
+
+  if (!tcs.begin()) {
+    Serial.println("TCS34725 NOT FOUND: check VCC/GND/SDA/SCL");
+    while (true) {
+      delay(100);
+    }
+  }
+
   Serial.println("M10 COLOR MEASURE: put one paper under the sensor");
 }
 
 void loop() {
-  Reading v = readColor();
-  if (!v.valid) {
-    Serial.println("NO SIGNAL: check wires, distance and light");
+  uint16_t r, g, b, c;
+  tcs.getRawData(&r, &g, &b, &c);
+
+  uint32_t sum = (uint32_t)r + (uint32_t)g + (uint32_t)b;
+
+  if (sum == 0 || c == 0) {
+    Serial.println("COLOR READ ERROR: check wires, distance and light");
     delay(150);
     return;
   }
-  float sum = v.redHz + v.greenHz + v.blueHz;
-  Serial.print("R="); Serial.print(v.redHz / sum * 100, 1);
-  Serial.print("%  G="); Serial.print(v.greenHz / sum * 100, 1);
-  Serial.print("%  B="); Serial.print(v.blueHz / sum * 100, 1);
-  Serial.print("%  Hz: ");
-  Serial.print(v.redHz, 0); Serial.print(" / ");
-  Serial.print(v.greenHz, 0); Serial.print(" / ");
-  Serial.println(v.blueHz, 0);
+
+  float redPct = 100.0f * r / sum;
+  float greenPct = 100.0f * g / sum;
+  float bluePct = 100.0f * b / sum;
+
+  Serial.print("R=");
+  Serial.print(redPct, 1);
+
+  Serial.print("%  G=");
+  Serial.print(greenPct, 1);
+
+  Serial.print("%  B=");
+  Serial.print(bluePct, 1);
+
+  Serial.print("%  RAW: ");
+  Serial.print(r);
+  Serial.print(" / ");
+  Serial.print(g);
+  Serial.print(" / ");
+  Serial.print(b);
+
+  Serial.print("  C=");
+  Serial.println(c);
+
   delay(150);
 }
