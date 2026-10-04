@@ -33,8 +33,12 @@
 <section class="card">
 <h2>③ 4色をおぼえたらコードを作ろう</h2>
 <p>4枚すべての数字が入ると、ロボット用のコードを作れます。</p>
+<button id="save" class="secondary">この4色を保存</button>
+<button id="load" class="secondary">保存データを読み込む</button>
+<br><br>
 <button id="generate" disabled>この4色でコードを作る</button>
 <button id="copy" class="secondary">コードをコピー</button>
+<p id="saveMessage" class="status" role="status"></p>
 <p id="message" role="status"></p>
 </section>
 </div>
@@ -62,6 +66,67 @@ function calibrate(v,w){
 }
 function d2(a,b){return (a.r-b.r)**2+(a.g-b.g)**2+(a.b-b.b)**2;}
 function fmt(v){return `R=${v.r.toFixed(1)} G=${v.g.toFixed(1)} B=${v.b.toFixed(1)}`;}
+
+const STORAGE_KEY='edubotix_m10_color_refs_v1';
+
+function getAllSamples(){
+  const data={};
+  for(const [key] of NAMES){
+    const v=sample(key);
+    if(!v || v.error) return null;
+    data[key]={r:v.r,g:v.g,b:v.b};
+  }
+  return data;
+}
+
+function saveColorData(silent=false){
+  const data=getAllSamples();
+  const m=document.getElementById('saveMessage');
+  if(!data){
+    if(!silent) m.textContent='4色すべてをOKにしてから保存してください。';
+    return false;
+  }
+  try{
+    localStorage.setItem(STORAGE_KEY,JSON.stringify({
+      version:1,
+      savedAt:new Date().toISOString(),
+      samples:data
+    }));
+    if(!silent) m.textContent='4色のデータをこの端末に保存しました。M12で読み込めます。';
+    return true;
+  }catch(err){
+    if(!silent) m.textContent='このブラウザでは保存できませんでした。数字をメモしておいてください。';
+    return false;
+  }
+}
+
+function loadColorData(auto=false){
+  const m=document.getElementById('saveMessage');
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw){
+      if(!auto) m.textContent='保存されている4色データはありません。';
+      return false;
+    }
+    const saved=JSON.parse(raw);
+    if(!saved || !saved.samples) throw new Error('invalid');
+    for(const [key] of NAMES){
+      const v=saved.samples[key];
+      if(!v) throw new Error('missing '+key);
+      for(const ch of ['r','g','b']){
+        document.getElementById(key+'_'+ch).value=Number(v[ch]).toFixed(1);
+      }
+    }
+    refresh();
+    m.textContent=auto
+      ? '前に保存した4色データを読み込みました。'
+      : '保存した4色データを読み込みました。';
+    return true;
+  }catch(err){
+    if(!auto) m.textContent='保存データを読み込めませんでした。もう一度測ってください。';
+    return false;
+  }
+}
 
 function refresh(){
   const w=sample('white');
@@ -105,6 +170,9 @@ document.querySelectorAll('input').forEach(e=>e.addEventListener('input',refresh
 
 const TEMPLATE="// M10 COLOR CALIBRATION LAB creates this sketch from YOUR measurements.\n// TCS34725: VCC/VIN->3V3, GND->GND, SDA->GPIO21, SCL->GPIO22.\n// OLED may share the same I2C lines.\n// Requires the \"Adafruit TCS34725\" library.\n// The classifier first corrects R/G/B using the measured white paper,\n// then chooses the nearest reference among RED / BLUE / YELLOW / WHITE.\n\n#include <Wire.h>\n#include <Adafruit_TCS34725.h>\n\nAdafruit_TCS34725 tcs(\n  TCS34725_INTEGRATIONTIME_50MS,\n  TCS34725_GAIN_4X\n);\n\nconst int BUTTON_PIN = 4;\nconst int STBY_PIN = 13, AIN1_PIN = 33, AIN2_PIN = 25;\nconst int BIN1_PIN = 26, BIN2_PIN = 27;\nconst int LEFT_PWM_PIN = 32, RIGHT_PWM_PIN = 14;\n\n// White-paper measurement before correction.\nconst float WHITE_R = {{WHITE_R}};\nconst float WHITE_G = {{WHITE_G}};\nconst float WHITE_B = {{WHITE_B}};\n\n// Corrected reference colors made in the LAB.\nconst float RED_REF_R = {{RED_REF_R}};\nconst float RED_REF_G = {{RED_REF_G}};\nconst float RED_REF_B = {{RED_REF_B}};\n\nconst float BLUE_REF_R = {{BLUE_REF_R}};\nconst float BLUE_REF_G = {{BLUE_REF_G}};\nconst float BLUE_REF_B = {{BLUE_REF_B}};\n\nconst float YELLOW_REF_R = {{YELLOW_REF_R}};\nconst float YELLOW_REF_G = {{YELLOW_REF_G}};\nconst float YELLOW_REF_B = {{YELLOW_REF_B}};\n\nconst float WHITE_REF_R = {{WHITE_REF_R}};\nconst float WHITE_REF_G = {{WHITE_REF_G}};\nconst float WHITE_REF_B = {{WHITE_REF_B}};\n\nconst int NORMAL_POWER = 105;\nconst int BLUE_POWER = 145;\nconst int TURN_POWER = 120;\nconst unsigned long RED_STOP_MS = 3000;\nconst unsigned long YELLOW_TURN_MS = 450;\n\nstruct ColorReading {\n  float red, green, blue;\n  bool valid;\n};\n\nenum ColorName { RED, BLUE, YELLOW, WHITE };\nenum Action { FORWARD, RED_WAIT, YELLOW_TURN };\n\nbool running = false;\nbool lastRawButton = HIGH, stableButton = HIGH;\nunsigned long buttonChangedAt = 0;\nbool redUsed = false, yellowUsed = false;\nAction action = FORWARD;\nunsigned long actionEndAt = 0;\n\nColorReading readColor() {\n  uint32_t rs = 0, gs = 0, bs = 0, cs = 0;\n\n  for (int i = 0; i < 3; i++) {\n    uint16_t r, g, b, c;\n    tcs.getRawData(&r, &g, &b, &c);\n    rs += r;\n    gs += g;\n    bs += b;\n    cs += c;\n  }\n\n  float r = rs / 3.0f;\n  float g = gs / 3.0f;\n  float b = bs / 3.0f;\n  float c = cs / 3.0f;\n\n  float sum = r + g + b;\n  if (sum <= 0 || c <= 0) return {0, 0, 0, false};\n\n  return {\n    100.0f * r / sum,\n    100.0f * g / sum,\n    100.0f * b / sum,\n    true\n  };\n}\n\nColorReading correctWithWhite(ColorReading in) {\n  if (!in.valid || WHITE_R <= 0 || WHITE_G <= 0 || WHITE_B <= 0) {\n    return {0, 0, 0, false};\n  }\n\n  float r = in.red / WHITE_R;\n  float g = in.green / WHITE_G;\n  float b = in.blue / WHITE_B;\n  float sum = r + g + b;\n\n  if (sum <= 0) return {0, 0, 0, false};\n\n  return {\n    100.0f * r / sum,\n    100.0f * g / sum,\n    100.0f * b / sum,\n    true\n  };\n}\n\nfloat distanceSq(ColorReading c, float r, float g, float b) {\n  float dr = c.red - r;\n  float dg = c.green - g;\n  float db = c.blue - b;\n  return dr * dr + dg * dg + db * db;\n}\n\nColorName judge(ColorReading raw) {\n  ColorReading c = correctWithWhite(raw);\n\n  float best = distanceSq(c, RED_REF_R, RED_REF_G, RED_REF_B);\n  ColorName answer = RED;\n\n  float dBlue = distanceSq(c, BLUE_REF_R, BLUE_REF_G, BLUE_REF_B);\n  if (dBlue < best) {\n    best = dBlue;\n    answer = BLUE;\n  }\n\n  float dYellow = distanceSq(c, YELLOW_REF_R, YELLOW_REF_G, YELLOW_REF_B);\n  if (dYellow < best) {\n    best = dYellow;\n    answer = YELLOW;\n  }\n\n  float dWhite = distanceSq(c, WHITE_REF_R, WHITE_REF_G, WHITE_REF_B);\n  if (dWhite < best) {\n    answer = WHITE;\n  }\n\n  return answer;\n}\n\nvoid stopMotors() {\n  ledcWrite(LEFT_PWM_PIN, 0);\n  ledcWrite(RIGHT_PWM_PIN, 0);\n  digitalWrite(STBY_PIN, LOW);\n  digitalWrite(AIN1_PIN, LOW); digitalWrite(AIN2_PIN, LOW);\n  digitalWrite(BIN1_PIN, LOW); digitalWrite(BIN2_PIN, LOW);\n}\n\nvoid drive(int leftPower, int rightPower, bool turnRight = false) {\n  digitalWrite(AIN1_PIN, LOW); digitalWrite(AIN2_PIN, HIGH);\n  digitalWrite(BIN1_PIN, turnRight ? HIGH : LOW);\n  digitalWrite(BIN2_PIN, turnRight ? LOW : HIGH);\n  digitalWrite(STBY_PIN, HIGH);\n  ledcWrite(LEFT_PWM_PIN, leftPower);\n  ledcWrite(RIGHT_PWM_PIN, rightPower);\n}\n\nbool buttonPressed() {\n  bool raw = digitalRead(BUTTON_PIN);\n  unsigned long now = millis();\n\n  if (raw != lastRawButton) {\n    lastRawButton = raw;\n    buttonChangedAt = now;\n  }\n\n  if (now - buttonChangedAt >= 35 && raw != stableButton) {\n    stableButton = raw;\n    return stableButton == LOW;\n  }\n\n  return false;\n}\n\nvoid setup() {\n  pinMode(STBY_PIN, OUTPUT);\n  pinMode(AIN1_PIN, OUTPUT); pinMode(AIN2_PIN, OUTPUT);\n  pinMode(BIN1_PIN, OUTPUT); pinMode(BIN2_PIN, OUTPUT);\n  pinMode(BUTTON_PIN, INPUT_PULLUP);\n\n  lastRawButton = stableButton = digitalRead(BUTTON_PIN);\n  Serial.begin(115200);\n\n  bool leftOK = ledcAttach(LEFT_PWM_PIN, 20000, 8);\n  bool rightOK = ledcAttach(RIGHT_PWM_PIN, 20000, 8);\n\n  if (!leftOK || !rightOK) {\n    stopMotors();\n    Serial.println(\"MOTOR SETUP ERROR\");\n    while (true) delay(100);\n  }\n\n  stopMotors();\n  Wire.begin(21, 22);\n\n  if (!tcs.begin()) {\n    stopMotors();\n    Serial.println(\"TCS34725 NOT FOUND: check VCC/GND/SDA/SCL\");\n    while (true) delay(100);\n  }\n\n  Serial.println(\"M10 READY: press the button to start\");\n}\n\nvoid loop() {\n  if (buttonPressed()) {\n    running = !running;\n    action = FORWARD;\n    if (!running) stopMotors();\n  }\n\n  if (!running) {\n    stopMotors();\n    return;\n  }\n\n  ColorReading raw = readColor();\n\n  if (!raw.valid) {\n    stopMotors();\n    running = false;\n    Serial.println(\"COLOR SENSOR ERROR: stopped; check sensor\");\n    return;\n  }\n\n  ColorName color = judge(raw);\n\n  if (color != RED) redUsed = false;\n  if (color != YELLOW) yellowUsed = false;\n\n  unsigned long now = millis();\n\n  if (action != FORWARD) {\n    if ((long)(now - actionEndAt) < 0) {\n      if (action == RED_WAIT) stopMotors();\n      else drive(TURN_POWER, TURN_POWER, true);\n      return;\n    }\n    action = FORWARD;\n  }\n\n  if (color == RED && !redUsed) {\n    redUsed = true;\n    action = RED_WAIT;\n    actionEndAt = now + RED_STOP_MS;\n    stopMotors();\n    Serial.println(\"RED: stop for 3 seconds\");\n  } else if (color == YELLOW && !yellowUsed) {\n    yellowUsed = true;\n    action = YELLOW_TURN;\n    actionEndAt = now + YELLOW_TURN_MS;\n    drive(TURN_POWER, TURN_POWER, true);\n    Serial.println(\"YELLOW: turn right\");\n  } else if (color == BLUE) {\n    drive(BLUE_POWER, BLUE_POWER);\n    Serial.println(\"BLUE: faster\");\n  } else {\n    drive(NORMAL_POWER, NORMAL_POWER);\n  }\n}\n";
 
+document.getElementById('save').addEventListener('click',()=>saveColorData(false));
+document.getElementById('load').addEventListener('click',()=>loadColorData(false));
+
 document.getElementById('generate').addEventListener('click',()=>{
   const raw={};
   for(const [key] of NAMES) raw[key]=sample(key);
@@ -125,7 +193,8 @@ document.getElementById('generate').addEventListener('click',()=>{
   };
   for(const [k,v] of Object.entries(values)) text=text.replaceAll('{{'+k+'}}',v);
   document.getElementById('code').value=text;
-  document.getElementById('message').textContent='コードができました。全部コピーしてArduino IDEに貼りつけてください。';
+  saveColorData(true);
+  document.getElementById('message').textContent='コードができました。4色データもこの端末に保存しました。全部コピーしてArduino IDEに貼りつけてください。';
 });
 
 document.getElementById('copy').addEventListener('click',async()=>{
@@ -135,6 +204,6 @@ document.getElementById('copy').addEventListener('click',async()=>{
   catch(err){e.focus();e.select();document.execCommand('copy');}
   document.getElementById('message').textContent='コピーしました。';
 });
-refresh();
+if(!loadColorData(true)) refresh();
 </script>
 </body></html>
