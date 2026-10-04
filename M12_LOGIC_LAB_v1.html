@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M12 LOGIC LAB | EDU-BOTIX</title>
+<style>
+:root{
+  font-family:system-ui,"Noto Sans JP",sans-serif;
+  color:#f8fafc;
+  background:#071425;
+  --card:#10243b;
+  --line:#29435b;
+  --blue:#2f7dd1;
+  --blue2:#265575;
+  --ok:#5be0bb;
+  --warn:#ffcf70;
+  --bad:#ff7b86;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:18px}
+main{max-width:1100px;margin:auto}
+.tag{display:inline-block;background:var(--blue);color:white;padding:7px 15px;border-radius:999px;font-weight:800}
+h1{font-size:clamp(26px,5vw,42px);margin:12px 0 6px}
+h2{font-size:21px;margin:0 0 12px}
+h3{font-size:17px;margin:0 0 8px}
+p{color:#cfdeec;line-height:1.7}
+.card{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:18px;margin-top:16px}
+.hint{background:#0b3141;border-left:4px solid #64d6d5;padding:12px;border-radius:8px}
+button,select{
+  font:700 15px system-ui,sans-serif;
+}
+button{
+  border:0;border-radius:10px;padding:10px 14px;cursor:pointer;
+  background:var(--blue);color:white
+}
+button.secondary{background:var(--blue2)}
+button.small{padding:7px 10px;font-size:14px}
+button:disabled{opacity:.45;cursor:not-allowed}
+select{
+  width:100%;border:1px solid #66849a;border-radius:9px;background:#071425;color:white;padding:9px
+}
+.rule{
+  display:grid;
+  grid-template-columns:54px minmax(180px,1.1fr) minmax(220px,1fr) 88px;
+  gap:10px;
+  align-items:center;
+  border:1px solid #37526a;
+  background:#0b1b2d;
+  border-radius:14px;
+  padding:10px;
+  margin:9px 0;
+}
+.num{
+  width:38px;height:38px;border-radius:50%;
+  display:grid;place-items:center;
+  background:#173a5e;font-weight:900
+}
+.cond{font-weight:800;line-height:1.4}
+.arrows{display:flex;gap:5px}
+.code{
+  background:#04111e;border:1px solid #496078;border-radius:12px;
+  padding:14px;font:14px/1.65 ui-monospace,monospace;color:#d6f5e7;
+  white-space:pre-wrap
+}
+.result{margin-top:12px;font-weight:800;line-height:1.6}
+.result.ok{color:var(--ok)}
+.result.warn{color:var(--warn)}
+.result.bad{color:var(--bad)}
+.scenario{
+  border:1px solid #37526a;background:#0b1b2d;border-radius:14px;
+  padding:14px;margin-top:10px
+}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+.chip{background:#173a5e;border:1px solid #355f84;border-radius:999px;padding:6px 10px;font-weight:750}
+.qrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center}
+.trace{
+  margin-top:10px;padding:10px 12px;border-radius:10px;
+  background:#071425;border:1px solid #29435b;color:#cce3f5;line-height:1.65
+}
+.footerBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+@media(max-width:760px){
+  body{padding:12px}.card{padding:14px}
+  .rule{grid-template-columns:42px 1fr}
+  .rule select,.arrows{grid-column:2}
+  .qrow{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<main>
+  <span class="tag">MISSION 12 · LOGIC LAB</span>
+  <h1>ロボットの判断ルールを組み立てよう</h1>
+  <p>条件分岐では、<b>どの条件を先に調べるか</b>で結果が変わります。命令の内容と、調べる順番の両方を考えてみよう。</p>
+
+  <section class="card">
+    <h2>① 条件に合う命令を選ぼう</h2>
+    <p>それぞれの条件が起きたとき、ロボットに何をさせるか選びます。</p>
+    <div id="rules"></div>
+    <div class="footerBtns">
+      <button id="checkRules">答えを判定する</button>
+      <button id="resetRules" class="secondary">最初からやり直す</button>
+    </div>
+    <div id="ruleResult" class="result"></div>
+  </section>
+
+  <section class="card">
+    <h2>② 条件分岐の順番を考えよう</h2>
+    <p>同時に2つ以上の条件が当てはまることがあります。上から順に調べ、<b>最初に当てはまった命令だけ</b>を実行すると考えます。</p>
+    <div class="hint">安全に関わる条件ほど先に置く必要があります。各行の「↑」「↓」で順番を変えられます。</div>
+    <div id="logicView" class="code"></div>
+  </section>
+
+  <section class="card">
+    <h2>③ 本当に正しく動くかテストしよう</h2>
+    <p>複数の出来事が同時に起きたとき、最終的にどの命令が実行されるか選んでください。</p>
+    <div id="scenarios"></div>
+    <div class="footerBtns">
+      <button id="checkScenarios">テストを判定する</button>
+    </div>
+    <div id="scenarioResult" class="result"></div>
+  </section>
+</main>
+
+<script>
+const ACTIONS = [
+  ['','命令を選ぶ'],
+  ['SAFE_STOP','安全停止する'],
+  ['OBSTACLE_STOP','障害物の手前で停止する'],
+  ['COMPLETE','MISSION COMPLETEで停止する'],
+  ['RED_STOP','3秒停止してから再開する'],
+  ['TURN_RIGHT','右へ向きを変える'],
+  ['FORWARD','通常走行する']
+];
+
+const CORRECT = {
+  fault:'SAFE_STOP',
+  obstacle:'OBSTACLE_STOP',
+  blue:'COMPLETE',
+  red:'RED_STOP',
+  yellow:'TURN_RIGHT',
+  else:'FORWARD'
+};
+
+const LABELS = {
+  fault:'A/B断線・センサー異常・ボタン停止',
+  obstacle:'障害物が15cmより近い',
+  blue:'青を見つける',
+  red:'赤を見つける',
+  yellow:'黄を見つける',
+  else:'それ以外'
+};
+
+let order = ['fault','obstacle','blue','red','yellow','else'];
+
+const scenarios = [
+  {
+    title:'テスト1',
+    chips:['Aの線が抜けた','青の上にいる'],
+    active:['fault','blue'],
+    answer:'SAFE_STOP'
+  },
+  {
+    title:'テスト2',
+    chips:['障害物まで10cm','黄の上にいる'],
+    active:['obstacle','yellow'],
+    answer:'OBSTACLE_STOP'
+  },
+  {
+    title:'テスト3',
+    chips:['赤の上にいる','A/Bは正常','障害物なし'],
+    active:['red'],
+    answer:'RED_STOP'
+  },
+  {
+    title:'テスト4',
+    chips:['青の上にいる','A/Bは正常','障害物なし'],
+    active:['blue'],
+    answer:'COMPLETE'
+  }
+];
+
+const rulesEl = document.getElementById('rules');
+const logicEl = document.getElementById('logicView');
+const ruleResult = document.getElementById('ruleResult');
+const scenarioEl = document.getElementById('scenarios');
+const scenarioResult = document.getElementById('scenarioResult');
+
+function actionOptions(selected=''){
+  return ACTIONS.map(([v,t]) =>
+    `<option value="${v}" ${v===selected?'selected':''}>${t}</option>`
+  ).join('');
+}
+
+function renderRules(){
+  rulesEl.innerHTML = order.map((key,i)=>`
+    <div class="rule" data-key="${key}">
+      <div class="num">${i+1}</div>
+      <div class="cond">${i===0?'もし ':i===order.length-1?'それ以外':'そうでなくて、もし '}${LABELS[key]}</div>
+      <select id="act_${key}">${actionOptions(document.getElementById('act_'+key)?.value || '')}</select>
+      <div class="arrows">
+        <button class="small secondary" onclick="moveRule('${key}',-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="small secondary" onclick="moveRule('${key}',1)" ${i===order.length-1?'disabled':''}>↓</button>
+      </div>
+    </div>
+  `).join('');
+  renderLogic();
+}
+
+function moveRule(key,dir){
+  const vals={};
+  for(const k of order){
+    const el=document.getElementById('act_'+k);
+    vals[k]=el?el.value:'';
+  }
+  const i=order.indexOf(key);
+  const j=i+dir;
+  if(j<0 || j>=order.length)return;
+  [order[i],order[j]]=[order[j],order[i]];
+  renderRules();
+  for(const [k,v] of Object.entries(vals)){
+    const el=document.getElementById('act_'+k);
+    if(el)el.value=v;
+  }
+  renderLogic();
+  ruleResult.textContent='';
+}
+
+function actionText(v){
+  return (ACTIONS.find(a=>a[0]===v)||['','命令を選ぶ'])[1];
+}
+
+function renderLogic(){
+  const lines=order.map((key,i)=>{
+    const act=document.getElementById('act_'+key)?.value || '';
+    if(i===0) return `もし「${LABELS[key]}」なら → ${actionText(act)}`;
+    if(i===order.length-1) return `それ以外 → ${actionText(act)}`;
+    return `そうでなくて、もし「${LABELS[key]}」なら → ${actionText(act)}`;
+  });
+  logicEl.textContent=lines.join('\n');
+}
+
+rulesEl.addEventListener('change',renderLogic);
+
+function checkRules(){
+  let mapOK=true;
+  let missing=false;
+  for(const key of order){
+    const v=document.getElementById('act_'+key).value;
+    if(!v) missing=true;
+    if(v!==CORRECT[key]) mapOK=false;
+  }
+
+  const correctOrder=['fault','obstacle','blue','red','yellow','else'];
+  const orderOK=order.every((k,i)=>k===correctOrder[i]);
+
+  if(missing){
+    ruleResult.className='result warn';
+    ruleResult.textContent='まだ命令が選ばれていない行があります。すべて選んでから判定しよう。';
+    return;
+  }
+
+  if(mapOK && orderOK){
+    ruleResult.className='result ok';
+    ruleResult.textContent='正解！ 命令の対応も、条件を調べる順番も合っています。次は複数の出来事が同時に起きるテストへ進もう。';
+  }else if(!mapOK && orderOK){
+    ruleResult.className='result bad';
+    const wrong=order.find(k=>document.getElementById('act_'+k).value!==CORRECT[k]);
+    ruleResult.textContent='順番は合っていますが、命令の対応にちがいがあります。「'+LABELS[wrong]+'」のときに何をさせるか見直そう。';
+  }else if(mapOK && !orderOK){
+    ruleResult.className='result bad';
+    const idx=order.findIndex((k,i)=>k!==correctOrder[i]);
+    ruleResult.textContent='命令の対応は合っていますが、優先順位がちがいます。'+(idx+1)+'番目に何を確認するべきか考え直そう。';
+  }else{
+    ruleResult.className='result bad';
+    ruleResult.textContent='命令の対応と優先順位の両方に、まだ見直すところがあります。安全に関わる条件から確認しよう。';
+  }
+}
+
+function renderScenarios(){
+  scenarioEl.innerHTML=scenarios.map((s,i)=>`
+    <div class="scenario">
+      <h3>${s.title}</h3>
+      <div class="chips">${s.chips.map(c=>`<span class="chip">${c}</span>`).join('')}</div>
+      <div class="qrow">
+        <div>最初に実行される命令は？</div>
+        <select id="scenario_${i}">${actionOptions('')}</select>
+      </div>
+      <div id="trace_${i}" class="trace" style="display:none"></div>
+    </div>
+  `).join('');
+}
+
+function simulate(active){
+  for(const key of order){
+    if(key==='else' || active.includes(key)){
+      const action=document.getElementById('act_'+key)?.value || '';
+      return {key,action};
+    }
+  }
+  return {key:'else',action:''};
+}
+
+function checkScenarios(){
+  let unanswered=false;
+  let correct=0;
+
+  scenarios.forEach((s,i)=>{
+    const choice=document.getElementById('scenario_'+i).value;
+    if(!choice) unanswered=true;
+
+    const sim=simulate(s.active);
+    const trace=document.getElementById('trace_'+i);
+    trace.style.display='block';
+
+    const checks=[];
+    for(const key of order){
+      if(key==='else'){
+        checks.push('「それ以外」→ 実行');
+        break;
+      }
+      const hit=s.active.includes(key);
+      checks.push('「'+LABELS[key]+'」→ '+(hit?'当てはまる':'当てはまらない'));
+      if(hit)break;
+    }
+
+    const expected = s.answer;
+    if(choice===expected) correct++;
+
+    trace.textContent =
+      checks.join(' / ') +
+      ' / 最初に当てはまった条件で「'+actionText(expected)+'」';
+  });
+
+  if(unanswered){
+    scenarioResult.className='result warn';
+    scenarioResult.textContent='まだ答えていないテストがあります。4つすべて選んでから判定しよう。';
+    return;
+  }
+
+  if(correct===scenarios.length){
+    scenarioResult.className='result ok';
+    scenarioResult.textContent='全問正解！ 条件分岐は「条件と命令の対応」だけでなく、「どの条件を先に調べるか」まで含めて設計する必要があります。';
+  }else{
+    scenarioResult.className='result bad';
+    scenarioResult.textContent=correct+' / '+scenarios.length+' 問正解。各テストの下に、上からどの条件を調べたか表示しました。最初に当てはまった条件を確認しよう。';
+  }
+}
+
+document.getElementById('checkRules').addEventListener('click',checkRules);
+document.getElementById('resetRules').addEventListener('click',()=>{
+  order=['fault','obstacle','blue','red','yellow','else'];
+  renderRules();
+  renderScenarios();
+  ruleResult.textContent='';
+  scenarioResult.textContent='';
+});
+document.getElementById('checkScenarios').addEventListener('click',checkScenarios);
+
+renderRules();
+renderScenarios();
+</script>
+</body>
+</html>
