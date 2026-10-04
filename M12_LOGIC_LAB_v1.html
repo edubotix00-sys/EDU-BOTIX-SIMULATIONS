@@ -90,33 +90,33 @@ select{
 <body>
 <main>
   <span class="tag">MISSION 12 · LOGIC LAB</span>
-  <h1>ロボットの判断ルールを組み立てよう</h1>
-  <p>条件分岐では、<b>どの条件を先に調べるか</b>で結果が変わります。命令の内容と、調べる順番の両方を考えてみよう。</p>
+  <h1>ロボットの「考える順番」を作ろう</h1>
+  <p>プログラムには、<b>条件分岐（じょうけんぶんき）</b>という「もし〜なら」の考え方があります。2つ以上のことが同時に起きたときは、<b>どれを先に見るか</b>で動きが変わります。今回は、ロボットが安全に動ける順番を自分で考えてみよう。</p>
 
   <section class="card">
-    <h2>① 条件に合う命令を選ぼう</h2>
-    <p>それぞれの条件が起きたとき、ロボットに何をさせるか選びます。</p>
+    <h2>① 「こんなとき、どうする？」を決めよう</h2>
+    <p>それぞれの出来事が起きたとき、ロボットをどう動かすか選ぼう。</p>
     <div id="rules"></div>
     <div class="footerBtns">
-      <button id="checkRules">答えを判定する</button>
-      <button id="resetRules" class="secondary">最初からやり直す</button>
+      <button id="checkRules">答え合わせ</button>
+      <button id="resetRules" class="secondary">やり直す</button>
     </div>
     <div id="ruleResult" class="result"></div>
   </section>
 
   <section class="card">
-    <h2>② 条件分岐の順番を考えよう</h2>
-    <p>同時に2つ以上の条件が当てはまることがあります。上から順に調べ、<b>最初に当てはまった命令だけ</b>を実行すると考えます。</p>
-    <div class="hint">安全に関わる条件ほど先に置く必要があります。各行の「↑」「↓」で順番を変えられます。</div>
+    <h2>② 「どれを先に見る？」を決めよう</h2>
+    <p>2つ以上の出来事が同時に起きることがあります。上から順番に見て、<b>最初に当てはまった動き</b>をするルールにしてみよう。</p>
+    <div class="hint">ヒント：ぶつかったり、こわれたりしないためのルールは、できるだけ先に見たほうが安全です。「↑」「↓」で順番を変えてみよう。</div>
     <div id="logicView" class="code"></div>
   </section>
 
   <section class="card">
-    <h2>③ 本当に正しく動くかテストしよう</h2>
-    <p>複数の出来事が同時に起きたとき、最終的にどの命令が実行されるか選んでください。</p>
+    <h2>③ 2つのことが同時に起きたら？</h2>
+    <p>2つの出来事が同時に起きたとき、ロボットが最初にどう動くか考えてみよう。</p>
     <div id="scenarios"></div>
     <div class="footerBtns">
-      <button id="checkScenarios">テストを判定する</button>
+      <button id="checkScenarios">答え合わせ</button>
     </div>
     <div id="scenarioResult" class="result"></div>
   </section>
@@ -124,13 +124,13 @@ select{
 
 <script>
 const ACTIONS = [
-  ['','命令を選ぶ'],
-  ['SAFE_STOP','安全停止する'],
-  ['OBSTACLE_STOP','障害物の手前で停止する'],
-  ['COMPLETE','MISSION COMPLETEで停止する'],
-  ['RED_STOP','3秒停止してから再開する'],
-  ['TURN_RIGHT','右へ向きを変える'],
-  ['FORWARD','通常走行する']
+  ['','動きを選ぶ'],
+  ['SAFE_STOP','安全のため止まる'],
+  ['OBSTACLE_STOP','ぶつからないように止まる'],
+  ['COMPLETE','青でゴールして止まる'],
+  ['RED_STOP','3秒止まってから進む'],
+  ['TURN_RIGHT','右を向く'],
+  ['FORWARD','そのまま前へ進む']
 ];
 
 const CORRECT = {
@@ -143,12 +143,12 @@ const CORRECT = {
 };
 
 const LABELS = {
-  fault:'A/B断線・センサー異常・ボタン停止',
-  obstacle:'障害物が15cmより近い',
-  blue:'青を見つける',
-  red:'赤を見つける',
-  yellow:'黄を見つける',
-  else:'それ以外'
+  fault:'A/Bの線が抜けた・センサーがおかしい・ボタンで止めた',
+  obstacle:'前の物まで15cmより近い',
+  blue:'青の上にいる',
+  red:'赤の上にいる',
+  yellow:'黄の上にいる',
+  else:'どれにも当てはまらない'
 };
 
 let order = ['fault','obstacle','blue','red','yellow','else'];
@@ -196,7 +196,7 @@ function renderRules(){
   rulesEl.innerHTML = order.map((key,i)=>`
     <div class="rule" data-key="${key}">
       <div class="num">${i+1}</div>
-      <div class="cond">${i===0?'もし ':i===order.length-1?'それ以外':'そうでなくて、もし '}${LABELS[key]}</div>
+      <div class="cond">${i===0?'もし ':i===order.length-1?'どれにも当てはまらなかったら':'ちがったら、もし '}${LABELS[key]}</div>
       <select id="act_${key}">${actionOptions(document.getElementById('act_'+key)?.value || '')}</select>
       <div class="arrows">
         <button class="small secondary" onclick="moveRule('${key}',-1)" ${i===0?'disabled':''}>↑</button>
@@ -227,15 +227,15 @@ function moveRule(key,dir){
 }
 
 function actionText(v){
-  return (ACTIONS.find(a=>a[0]===v)||['','命令を選ぶ'])[1];
+  return (ACTIONS.find(a=>a[0]===v)||['','動きを選ぶ'])[1];
 }
 
 function renderLogic(){
   const lines=order.map((key,i)=>{
     const act=document.getElementById('act_'+key)?.value || '';
     if(i===0) return `もし「${LABELS[key]}」なら → ${actionText(act)}`;
-    if(i===order.length-1) return `それ以外 → ${actionText(act)}`;
-    return `そうでなくて、もし「${LABELS[key]}」なら → ${actionText(act)}`;
+    if(i===order.length-1) return `どれにも当てはまらなかったら → ${actionText(act)}`;
+    return `ちがったら、もし「${LABELS[key]}」なら → ${actionText(act)}`;
   });
   logicEl.textContent=lines.join('\n');
 }
@@ -256,24 +256,24 @@ function checkRules(){
 
   if(missing){
     ruleResult.className='result warn';
-    ruleResult.textContent='まだ命令が選ばれていない行があります。すべて選んでから判定しよう。';
+    ruleResult.textContent='まだ動きを選んでいないところがあります。全部選んでから「答え合わせ」を押そう。';
     return;
   }
 
   if(mapOK && orderOK){
     ruleResult.className='result ok';
-    ruleResult.textContent='正解！ 命令の対応も、条件を調べる順番も合っています。次は複数の出来事が同時に起きるテストへ進もう。';
+    ruleResult.textContent='正解！ 「こんなときはこの動き」と「どれを先に見るか」の両方が合っています。次のテストへ進もう。';
   }else if(!mapOK && orderOK){
     ruleResult.className='result bad';
     const wrong=order.find(k=>document.getElementById('act_'+k).value!==CORRECT[k]);
-    ruleResult.textContent='順番は合っていますが、命令の対応にちがいがあります。「'+LABELS[wrong]+'」のときに何をさせるか見直そう。';
+    ruleResult.textContent='見る順番は合っています。でも「'+LABELS[wrong]+'」のときの動きがちがいます。もう一度考えてみよう。';
   }else if(mapOK && !orderOK){
     ruleResult.className='result bad';
     const idx=order.findIndex((k,i)=>k!==correctOrder[i]);
-    ruleResult.textContent='命令の対応は合っていますが、優先順位がちがいます。'+(idx+1)+'番目に何を確認するべきか考え直そう。';
+    ruleResult.textContent='動きは全部合っています。でも見る順番がちがいます。'+(idx+1)+'番目に何を見ると安全か、もう一度考えてみよう。';
   }else{
     ruleResult.className='result bad';
-    ruleResult.textContent='命令の対応と優先順位の両方に、まだ見直すところがあります。安全に関わる条件から確認しよう。';
+    ruleResult.textContent='まだ直すところがあります。まずは「危ないときに止まる」ルールから見直してみよう。';
   }
 }
 
@@ -283,7 +283,7 @@ function renderScenarios(){
       <h3>${s.title}</h3>
       <div class="chips">${s.chips.map(c=>`<span class="chip">${c}</span>`).join('')}</div>
       <div class="qrow">
-        <div>最初に実行される命令は？</div>
+        <div>このとき、ロボットは最初にどう動く？</div>
         <select id="scenario_${i}">${actionOptions('')}</select>
       </div>
       <div id="trace_${i}" class="trace" style="display:none"></div>
@@ -316,11 +316,11 @@ function checkScenarios(){
     const checks=[];
     for(const key of order){
       if(key==='else'){
-        checks.push('「それ以外」→ 実行');
+        checks.push('どれにも当てはまらない → ここで決める');
         break;
       }
       const hit=s.active.includes(key);
-      checks.push('「'+LABELS[key]+'」→ '+(hit?'当てはまる':'当てはまらない'));
+      checks.push('「'+LABELS[key]+'」→ '+(hit?'○ あてはまる':'× ちがう'));
       if(hit)break;
     }
 
@@ -329,21 +329,21 @@ function checkScenarios(){
 
     trace.textContent =
       checks.join(' / ') +
-      ' / 最初に当てはまった条件で「'+actionText(expected)+'」';
+      ' / → ここで決定：「'+actionText(expected)+'」';
   });
 
   if(unanswered){
     scenarioResult.className='result warn';
-    scenarioResult.textContent='まだ答えていないテストがあります。4つすべて選んでから判定しよう。';
+    scenarioResult.textContent='まだ答えていないテストがあります。4つ全部選んでから「答え合わせ」を押そう。';
     return;
   }
 
   if(correct===scenarios.length){
     scenarioResult.className='result ok';
-    scenarioResult.textContent='全問正解！ 条件分岐は「条件と命令の対応」だけでなく、「どの条件を先に調べるか」まで含めて設計する必要があります。';
+    scenarioResult.textContent='全問正解！ 「もし〜なら」は、何をするかだけでなく、どれから確かめるかも大切です。これが条件分岐（じょうけんぶんき）の「優先する順番」です。';
   }else{
     scenarioResult.className='result bad';
-    scenarioResult.textContent=correct+' / '+scenarios.length+' 問正解。各テストの下に、上からどの条件を調べたか表示しました。最初に当てはまった条件を確認しよう。';
+    scenarioResult.textContent=correct+' / '+scenarios.length+' 問正解。下のメモを見て、上からどんな順番で確かめたか見直してみよう。';
   }
 }
 
