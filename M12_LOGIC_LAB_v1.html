@@ -107,7 +107,7 @@ select{
   <section class="card">
     <h2>② 「どれを先に見る？」を決めよう</h2>
     <p>2つ以上の出来事が同時に起きることがあります。上から順番に見て、<b>最初に当てはまった動き</b>をするルールにしてみよう。</p>
-    <div class="hint">ヒント：ぶつかったり、こわれたりしないためのルールは、できるだけ先に見たほうが安全です。「↑」「↓」で順番を変えてみよう。</div>
+    <div class="hint">最初の順番はわざとバラバラです。ヒント：ぶつかったり、こわれたりしないためのルールは、できるだけ先に見たほうが安全です。「↑」「↓」で正しい順番に変えてみよう。</div>
     <div id="logicView" class="code"></div>
   </section>
 
@@ -151,7 +151,8 @@ const LABELS = {
   else:'どれにも当てはまらない'
 };
 
-let order = ['fault','obstacle','blue','red','yellow','else'];
+const START_ORDER = ['red','yellow','blue','obstacle','fault','else'];
+let order = [...START_ORDER];
 
 const scenarios = [
   {
@@ -349,7 +350,7 @@ function checkScenarios(){
 
 document.getElementById('checkRules').addEventListener('click',checkRules);
 document.getElementById('resetRules').addEventListener('click',()=>{
-  order=['fault','obstacle','blue','red','yellow','else'];
+  order=[...START_ORDER];
   renderRules();
   renderScenarios();
   ruleResult.textContent='';
