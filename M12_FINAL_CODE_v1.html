@@ -1,0 +1,1210 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M12 FINAL CODE | EDU-BOTIX</title>
+<style>
+:root{font-family:system-ui,"Noto Sans JP",sans-serif;color:#f8fafc;background:#071425}*{box-sizing:border-box}body{margin:0;padding:18px}main{max-width:1100px;margin:auto}.tag{display:inline-block;background:#2f7dd1;color:white;padding:7px 15px;border-radius:99px;font-weight:800}h1{font-size:clamp(25px,5vw,42px);margin:12px 0 4px}h2{font-size:21px;margin:0 0 12px}p{color:#cfdeec;line-height:1.7}.card{border:1px solid #29435b;background:#10243b;border-radius:20px;padding:18px;margin-top:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.status{font-weight:750;color:#dfeef8}.ok{color:#5be0bb}.warn{color:#ffcf70}.hint{background:#0b3141;border-left:4px solid #64d6d5;padding:12px;border-radius:8px}button{border:0;border-radius:10px;padding:11px 15px;font:700 16px system-ui,sans-serif;cursor:pointer;background:#2f7dd1;color:white;margin-right:8px}button.secondary{background:#265575}button:disabled{opacity:.45;cursor:not-allowed}textarea{width:100%;height:420px;background:#04111e;color:#d6f5e7;border:1px solid #496078;border-radius:10px;padding:12px;font:13px/1.45 ui-monospace,monospace;resize:vertical}.vals{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.v{background:#0b1b2d;border:1px solid #35536d;border-radius:12px;padding:12px}.v b{display:block;margin-bottom:6px}.v span{color:#b9d9ee;font-family:ui-monospace,monospace}@media(max-width:760px){.grid,.vals{grid-template-columns:1fr}body{padding:12px}.card{padding:14px}}
+</style>
+</head>
+<body><main>
+<span class="tag">MISSION 12 · FINAL CODE</span>
+<h1>M10の4色データを使おう</h1>
+<p>M10でこの端末に保存した4色データを読み込み、M12の最終統合コードを作ります。</p>
+
+<section class="card">
+<h2>① M10の保存データを読み込む</h2>
+<button id="load">M10の保存データを読み込む</button>
+<p id="status" class="status"></p>
+<div class="vals">
+  <div class="v"><b>白</b><span id="white">---</span></div>
+  <div class="v"><b>赤</b><span id="red">---</span></div>
+  <div class="v"><b>青</b><span id="blue">---</span></div>
+  <div class="v"><b>黄</b><span id="yellow">---</span></div>
+</div>
+<p class="hint">保存データが見つからない場合だけ、M10に戻って4色を測り直してください。同じ端末・同じブラウザで使うと読み込めます。</p>
+</section>
+
+<section class="card">
+<h2>② 最終統合コードを作る</h2>
+<button id="generate" disabled>この4色で最終コードを作る</button>
+<button id="copy" class="secondary">コードをコピー</button>
+<p id="message" role="status"></p>
+</section>
+
+<section class="card"><h2>できた最終統合コード</h2><textarea id="code" readonly></textarea></section>
+</main>
+<script>
+const STORAGE_KEY='edubotix_m10_color_refs_v1';
+const CODE_TEMPLATE=`#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_TCS34725.h>
+#include <math.h>
+
+// ==============================
+// M12 最終統合コード
+// Arduino-ESP32 3.x
+// ==============================
+
+// 超音波センサー
+const int TRIG_PIN = 5;
+const int ECHO_PIN = 18;
+
+// ボタン・故障検知
+const int BUTTON_PIN = 4;
+const int SYSTEM_A_PIN = 19;
+const int SYSTEM_B_PIN = 23;
+
+// TB6612FNG
+const int PIN_STBY = 13;
+const int PIN_AIN1 = 33;
+const int PIN_AIN2 = 25;
+const int PIN_BIN1 = 26;
+const int PIN_BIN2 = 27;
+const int PIN_PWMA = 32;
+const int PIN_PWMB = 14;
+
+// モーター
+const int DRIVE_POWER = 130;
+const int TURN_POWER = 130;
+
+// 動作時間
+const unsigned long RED_STOP_MS = 3000;
+const unsigned long YELLOW_TURN_MS = 450;
+
+// センサー確認の間隔
+const unsigned long DISTANCE_INTERVAL_MS = 80;
+const unsigned long COLOR_INTERVAL_MS = 120;
+const unsigned long DISPLAY_INTERVAL_MS = 150;
+
+// 障害物に反応する距離
+const float STOP_DISTANCE_CM = 15.0f;
+
+// OLED
+Adafruit_SSD1306 display(128, 64, &Wire, -1);
+
+// カラーセンサー
+Adafruit_TCS34725 tcs(
+  TCS34725_INTEGRATIONTIME_50MS,
+  TCS34725_GAIN_4X
+);
+
+// ==============================
+// M10で測った4色の見本
+// R%, G%, B% を入れる
+// ==============================
+
+float REF_WHITE[3]  = {{REF_WHITE}};
+float REF_RED[3]    = {{REF_RED}};
+float REF_BLUE[3]   = {{REF_BLUE}};
+float REF_YELLOW[3] = {{REF_YELLOW}};
+
+// ==============================
+// 状態
+// ==============================
+
+enum ColorCode {
+  COLOR_UNKNOWN,
+  COLOR_WHITE,
+  COLOR_RED,
+  COLOR_BLUE,
+  COLOR_YELLOW
+};
+
+enum RobotState {
+  READY,
+  RUNNING,
+  SAFETY_LOCK,
+  RED_STOP,
+  YELLOW_TURN,
+  MISSION_COMPLETE
+};
+
+RobotState state = READY;
+
+ColorCode currentColor = COLOR_UNKNOWN;
+ColorCode eventColor = COLOR_UNKNOWN;
+
+bool obstacleStop = false;
+bool distanceError = false;
+float distanceCm = -1.0f;
+
+bool rawButton = HIGH;
+bool stableButton = HIGH;
+
+unsigned long buttonChangedAt = 0;
+unsigned long actionStartedAt = 0;
+unsigned long lastDistanceAt = 0;
+unsigned long lastColorAt = 0;
+unsigned long lastDisplayAt = 0;
+
+
+// ==============================
+// モーター
+// ==============================
+
+void stopMotors() {
+  ledcWrite(PIN_PWMA, 0);
+  ledcWrite(PIN_PWMB, 0);
+
+  digitalWrite(PIN_AIN1, LOW);
+  digitalWrite(PIN_AIN2, LOW);
+  digitalWrite(PIN_BIN1, LOW);
+  digitalWrite(PIN_BIN2, LOW);
+
+  digitalWrite(PIN_STBY, LOW);
+}
+
+void driveForward() {
+  digitalWrite(PIN_STBY, HIGH);
+
+  digitalWrite(PIN_AIN1, LOW);
+  digitalWrite(PIN_AIN2, HIGH);
+
+  digitalWrite(PIN_BIN1, LOW);
+  digitalWrite(PIN_BIN2, HIGH);
+
+  ledcWrite(PIN_PWMA, DRIVE_POWER);
+  ledcWrite(PIN_PWMB, DRIVE_POWER);
+}
+
+void turnRight() {
+  digitalWrite(PIN_STBY, HIGH);
+
+  digitalWrite(PIN_AIN1, LOW);
+  digitalWrite(PIN_AIN2, HIGH);
+
+  digitalWrite(PIN_BIN1, LOW);
+  digitalWrite(PIN_BIN2, LOW);
+
+  ledcWrite(PIN_PWMA, TURN_POWER);
+  ledcWrite(PIN_PWMB, 0);
+}
+
+
+// ==============================
+// ボタン
+// ==============================
+
+bool newButtonPress(unsigned long now) {
+  bool raw = digitalRead(BUTTON_PIN);
+
+  if (raw != rawButton) {
+    rawButton = raw;
+    buttonChangedAt = now;
+  }
+
+  if (
+    raw != stableButton &&
+    now - buttonChangedAt >= 40
+  ) {
+    stableButton = raw;
+
+    if (stableButton == LOW) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
+// ==============================
+// A / B 故障検知
+// GNDにつながっていればLOW = OK
+// 抜ければHIGH = LOST
+// ==============================
+
+uint8_t readFaults() {
+  uint8_t faults = 0;
+
+  if (digitalRead(SYSTEM_A_PIN) == HIGH) {
+    faults |= 1;
+  }
+
+  if (digitalRead(SYSTEM_B_PIN) == HIGH) {
+    faults |= 2;
+  }
+
+  return faults;
+}
+
+
+// ==============================
+// OLED
+// ==============================
+
+uint8_t findOledAddress() {
+  const uint8_t addresses[] = {
+    0x3C,
+    0x3D
+  };
+
+  for (uint8_t address : addresses) {
+    Wire.beginTransmission(address);
+
+    if (Wire.endTransmission() == 0) {
+      return address;
+    }
+  }
+
+  return 0;
+}
+
+
+// ==============================
+// 距離
+// ==============================
+
+float readDistance() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(4);
+
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+
+  digitalWrite(TRIG_PIN, LOW);
+
+  unsigned long echoTime =
+    pulseIn(
+      ECHO_PIN,
+      HIGH,
+      30000UL
+    );
+
+  if (echoTime == 0) {
+    return -1.0f;
+  }
+
+  return
+    echoTime *
+    0.0343f /
+    2.0f;
+}
+
+
+// ==============================
+// 色
+// ==============================
+
+void normalize3(float v[3]) {
+  float sum =
+    v[0] +
+    v[1] +
+    v[2];
+
+  if (sum <= 0.0f) {
+    return;
+  }
+
+  v[0] =
+    100.0f *
+    v[0] /
+    sum;
+
+  v[1] =
+    100.0f *
+    v[1] /
+    sum;
+
+  v[2] =
+    100.0f *
+    v[2] /
+    sum;
+}
+
+void correctWithWhite(
+  const float in[3],
+  float out[3]
+) {
+  float whiteAverage =
+    (
+      REF_WHITE[0] +
+      REF_WHITE[1] +
+      REF_WHITE[2]
+    ) /
+    3.0f;
+
+  float wr =
+    REF_WHITE[0] > 0.1f ?
+    REF_WHITE[0] :
+    0.1f;
+
+  float wg =
+    REF_WHITE[1] > 0.1f ?
+    REF_WHITE[1] :
+    0.1f;
+
+  float wb =
+    REF_WHITE[2] > 0.1f ?
+    REF_WHITE[2] :
+    0.1f;
+
+  out[0] =
+    in[0] *
+    whiteAverage /
+    wr;
+
+  out[1] =
+    in[1] *
+    whiteAverage /
+    wg;
+
+  out[2] =
+    in[2] *
+    whiteAverage /
+    wb;
+
+  normalize3(out);
+}
+
+float colorDistance(
+  const float a[3],
+  const float b[3]
+) {
+  float dr =
+    a[0] -
+    b[0];
+
+  float dg =
+    a[1] -
+    b[1];
+
+  float db =
+    a[2] -
+    b[2];
+
+  return sqrtf(
+    dr * dr +
+    dg * dg +
+    db * db
+  );
+}
+
+ColorCode classifyColor() {
+  uint16_t rRaw;
+  uint16_t gRaw;
+  uint16_t bRaw;
+  uint16_t cRaw;
+
+  tcs.getRawData(
+    &rRaw,
+    &gRaw,
+    &bRaw,
+    &cRaw
+  );
+
+  if (cRaw == 0) {
+    return COLOR_UNKNOWN;
+  }
+
+  float measured[3] = {
+    (float)rRaw,
+    (float)gRaw,
+    (float)bRaw
+  };
+
+  normalize3(measured);
+
+  float corrected[3];
+
+  correctWithWhite(
+    measured,
+    corrected
+  );
+
+  float refs[4][3];
+
+  correctWithWhite(
+    REF_WHITE,
+    refs[0]
+  );
+
+  correctWithWhite(
+    REF_RED,
+    refs[1]
+  );
+
+  correctWithWhite(
+    REF_BLUE,
+    refs[2]
+  );
+
+  correctWithWhite(
+    REF_YELLOW,
+    refs[3]
+  );
+
+  float bestDistance = 9999.0f;
+  int bestIndex = 0;
+
+  for (
+    int i = 0;
+    i < 4;
+    i++
+  ) {
+    float d =
+      colorDistance(
+        corrected,
+        refs[i]
+      );
+
+    if (d < bestDistance) {
+      bestDistance = d;
+      bestIndex = i;
+    }
+  }
+
+  if (bestIndex == 0) {
+    return COLOR_WHITE;
+  }
+
+  if (bestIndex == 1) {
+    return COLOR_RED;
+  }
+
+  if (bestIndex == 2) {
+    return COLOR_BLUE;
+  }
+
+  return COLOR_YELLOW;
+}
+
+const char* colorName(
+  ColorCode color
+) {
+  if (color == COLOR_WHITE) {
+    return "WHITE";
+  }
+
+  if (color == COLOR_RED) {
+    return "RED";
+  }
+
+  if (color == COLOR_BLUE) {
+    return "BLUE";
+  }
+
+  if (color == COLOR_YELLOW) {
+    return "YELLOW";
+  }
+
+  return "UNKNOWN";
+}
+
+
+// ==============================
+// OLED表示
+// ==============================
+
+void drawStatus(
+  uint8_t faults
+) {
+  display.clearDisplay();
+
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+
+  if (
+    state ==
+    MISSION_COMPLETE
+  ) {
+    display.setTextSize(2);
+
+    display.println(
+      "MISSION"
+    );
+
+    display.println(
+      "COMPLETE!"
+    );
+
+    display.display();
+
+    return;
+  }
+
+  if (
+    state ==
+    SAFETY_LOCK
+  ) {
+    display.println(
+      "SAFETY LOCK"
+    );
+  }
+  else if (
+    obstacleStop
+  ) {
+    display.println(
+      "OBSTACLE STOP"
+    );
+  }
+  else if (
+    state ==
+    RED_STOP
+  ) {
+    display.println(
+      "RED: STOP"
+    );
+  }
+  else if (
+    state ==
+    YELLOW_TURN
+  ) {
+    display.println(
+      "YELLOW: TURN"
+    );
+  }
+  else if (
+    state ==
+    RUNNING
+  ) {
+    display.println(
+      "RUNNING"
+    );
+  }
+  else {
+    display.println(
+      "READY"
+    );
+  }
+
+  display.setCursor(
+    0,
+    14
+  );
+
+  display.print(
+    "COLOR: "
+  );
+
+  display.println(
+    colorName(
+      currentColor
+    )
+  );
+
+  display.setCursor(
+    0,
+    26
+  );
+
+  display.print(
+    "DIST: "
+  );
+
+  if (distanceError) {
+    display.println(
+      "ERROR"
+    );
+  }
+  else {
+    display.print(
+      distanceCm,
+      1
+    );
+
+    display.println(
+      " cm"
+    );
+  }
+
+  display.setCursor(
+    0,
+    38
+  );
+
+  display.print(
+    "A:"
+  );
+
+  display.print(
+    (faults & 1) ?
+    "LOST" :
+    "OK"
+  );
+
+  display.print(
+    " B:"
+  );
+
+  display.println(
+    (faults & 2) ?
+    "LOST" :
+    "OK"
+  );
+
+  display.setCursor(
+    0,
+    52
+  );
+
+  if (
+    state ==
+    SAFETY_LOCK &&
+    faults == 0 &&
+    !distanceError
+  ) {
+    display.println(
+      "PRESS BUTTON"
+    );
+  }
+  else if (
+    state ==
+    READY
+  ) {
+    display.println(
+      "PRESS BUTTON"
+    );
+  }
+
+  display.display();
+}
+
+
+// ==============================
+// setup
+// ==============================
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(
+    TRIG_PIN,
+    OUTPUT
+  );
+
+  pinMode(
+    ECHO_PIN,
+    INPUT
+  );
+
+  pinMode(
+    BUTTON_PIN,
+    INPUT_PULLUP
+  );
+
+  pinMode(
+    SYSTEM_A_PIN,
+    INPUT_PULLUP
+  );
+
+  pinMode(
+    SYSTEM_B_PIN,
+    INPUT_PULLUP
+  );
+
+  pinMode(
+    PIN_STBY,
+    OUTPUT
+  );
+
+  pinMode(
+    PIN_AIN1,
+    OUTPUT
+  );
+
+  pinMode(
+    PIN_AIN2,
+    OUTPUT
+  );
+
+  pinMode(
+    PIN_BIN1,
+    OUTPUT
+  );
+
+  pinMode(
+    PIN_BIN2,
+    OUTPUT
+  );
+
+  bool pwmAReady =
+    ledcAttach(
+      PIN_PWMA,
+      20000,
+      8
+    );
+
+  bool pwmBReady =
+    ledcAttach(
+      PIN_PWMB,
+      20000,
+      8
+    );
+
+  if (
+    !pwmAReady ||
+    !pwmBReady
+  ) {
+    stopMotors();
+
+    Serial.println(
+      "MOTOR PWM ERROR"
+    );
+
+    while (true) {
+      delay(100);
+    }
+  }
+
+  stopMotors();
+
+  rawButton =
+    digitalRead(
+      BUTTON_PIN
+    );
+
+  stableButton =
+    rawButton;
+
+  Wire.begin(
+    21,
+    22
+  );
+
+  uint8_t oledAddress =
+    findOledAddress();
+
+  if (
+    oledAddress == 0 ||
+    !display.begin(
+      SSD1306_SWITCHCAPVCC,
+      oledAddress
+    )
+  ) {
+    stopMotors();
+
+    Serial.println(
+      "OLED NOT FOUND"
+    );
+
+    while (true) {
+      delay(100);
+    }
+  }
+
+  display.setTextColor(
+    SSD1306_WHITE
+  );
+
+  display.setTextWrap(
+    false
+  );
+
+  if (!tcs.begin()) {
+    stopMotors();
+
+    display.clearDisplay();
+    display.setCursor(0, 0);
+
+    display.println(
+      "TCS34725"
+    );
+
+    display.println(
+      "NOT FOUND"
+    );
+
+    display.display();
+
+    while (true) {
+      delay(100);
+    }
+  }
+
+  distanceCm =
+    readDistance();
+
+  distanceError =
+    distanceCm < 0;
+
+  uint8_t faults =
+    readFaults();
+
+  if (
+    faults != 0 ||
+    distanceError
+  ) {
+    state =
+      SAFETY_LOCK;
+  }
+
+  drawStatus(
+    faults
+  );
+}
+
+
+// ==============================
+// loop
+// ==============================
+
+void loop() {
+  unsigned long now =
+    millis();
+
+  uint8_t faults =
+    readFaults();
+
+
+  // --------------------------
+  // 1. 故障は最優先
+  // --------------------------
+
+  if (
+    faults != 0 &&
+    state !=
+    MISSION_COMPLETE
+  ) {
+    state =
+      SAFETY_LOCK;
+
+    stopMotors();
+  }
+
+
+  // --------------------------
+  // 2. 距離を確認
+  // --------------------------
+
+  if (
+    now -
+    lastDistanceAt >=
+    DISTANCE_INTERVAL_MS
+  ) {
+    lastDistanceAt =
+      now;
+
+    distanceCm =
+      readDistance();
+
+    distanceError =
+      distanceCm < 0;
+
+    if (
+      distanceError &&
+      state !=
+      MISSION_COMPLETE
+    ) {
+      state =
+        SAFETY_LOCK;
+
+      stopMotors();
+    }
+  }
+
+
+  // --------------------------
+  // 3. 色を確認
+  // --------------------------
+
+  if (
+    now -
+    lastColorAt >=
+    COLOR_INTERVAL_MS
+  ) {
+    lastColorAt =
+      now;
+
+    currentColor =
+      classifyColor();
+  }
+
+
+  // --------------------------
+  // 4. ボタン
+  // --------------------------
+
+  bool pressed =
+    newButtonPress(
+      now
+    );
+
+  if (
+    pressed &&
+    state !=
+    MISSION_COMPLETE
+  ) {
+    if (
+      state ==
+      READY
+    ) {
+      if (
+        faults == 0 &&
+        !distanceError
+      ) {
+        state =
+          RUNNING;
+      }
+    }
+    else if (
+      state ==
+      SAFETY_LOCK
+    ) {
+      if (
+        faults == 0 &&
+        !distanceError
+      ) {
+        state =
+          RUNNING;
+
+        eventColor =
+          currentColor;
+      }
+    }
+    else {
+      state =
+        READY;
+
+      stopMotors();
+    }
+  }
+
+
+  // --------------------------
+  // 5. 停止状態
+  // --------------------------
+
+  obstacleStop = false;
+
+  if (
+    state ==
+    READY
+  ) {
+    stopMotors();
+  }
+
+  else if (
+    state ==
+    SAFETY_LOCK
+  ) {
+    stopMotors();
+  }
+
+  else if (
+    state ==
+    MISSION_COMPLETE
+  ) {
+    stopMotors();
+  }
+
+  else {
+
+    // ------------------------
+    // 障害物
+    // ------------------------
+
+    if (
+      !distanceError &&
+      distanceCm <
+      STOP_DISTANCE_CM
+    ) {
+      obstacleStop =
+        true;
+
+      stopMotors();
+    }
+
+    else {
+
+      // ----------------------
+      // 色イベント
+      // ----------------------
+
+      if (
+        state ==
+        RUNNING
+      ) {
+        if (
+          currentColor ==
+          COLOR_WHITE ||
+          currentColor ==
+          COLOR_UNKNOWN
+        ) {
+          eventColor =
+            currentColor;
+        }
+
+        else if (
+          currentColor !=
+          eventColor
+        ) {
+          eventColor =
+            currentColor;
+
+          if (
+            currentColor ==
+            COLOR_BLUE
+          ) {
+            state =
+              MISSION_COMPLETE;
+
+            stopMotors();
+          }
+
+          else if (
+            currentColor ==
+            COLOR_RED
+          ) {
+            state =
+              RED_STOP;
+
+            actionStartedAt =
+              now;
+
+            stopMotors();
+          }
+
+          else if (
+            currentColor ==
+            COLOR_YELLOW
+          ) {
+            state =
+              YELLOW_TURN;
+
+            actionStartedAt =
+              now;
+          }
+        }
+      }
+
+
+      // ----------------------
+      // 赤：3秒停止
+      // ----------------------
+
+      if (
+        state ==
+        RED_STOP
+      ) {
+        stopMotors();
+
+        if (
+          now -
+          actionStartedAt >=
+          RED_STOP_MS
+        ) {
+          state =
+            RUNNING;
+        }
+      }
+
+
+      // ----------------------
+      // 黄：右へ向く
+      // ----------------------
+
+      else if (
+        state ==
+        YELLOW_TURN
+      ) {
+        turnRight();
+
+        if (
+          now -
+          actionStartedAt >=
+          YELLOW_TURN_MS
+        ) {
+          state =
+            RUNNING;
+        }
+      }
+
+
+      // ----------------------
+      // 通常走行
+      // ----------------------
+
+      else if (
+        state ==
+        RUNNING
+      ) {
+        driveForward();
+      }
+    }
+  }
+
+
+  // --------------------------
+  // 6. OLED更新
+  // --------------------------
+
+  if (
+    now -
+    lastDisplayAt >=
+    DISPLAY_INTERVAL_MS
+  ) {
+    lastDisplayAt =
+      now;
+
+    drawStatus(
+      faults
+    );
+  }
+}`;
+let savedData=null;
+
+function fmt(v){
+  return `R=${Number(v.r).toFixed(1)} / G=${Number(v.g).toFixed(1)} / B=${Number(v.b).toFixed(1)}`;
+}
+function renderSamples(s){
+  for(const k of ['white','red','blue','yellow']){
+    document.getElementById(k).textContent=fmt(s[k]);
+  }
+}
+function loadSaved(auto=false){
+  const status=document.getElementById('status');
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw){
+      savedData=null;
+      document.getElementById('generate').disabled=true;
+      if(!auto) status.textContent='保存データが見つかりません。M10で4色を保存してください。';
+      return false;
+    }
+    const parsed=JSON.parse(raw);
+    if(!parsed.samples) throw new Error('invalid');
+    for(const k of ['white','red','blue','yellow']){
+      const v=parsed.samples[k];
+      if(!v || !Number.isFinite(Number(v.r)) || !Number.isFinite(Number(v.g)) || !Number.isFinite(Number(v.b))) throw new Error('invalid');
+    }
+    savedData=parsed.samples;
+    renderSamples(savedData);
+    document.getElementById('generate').disabled=false;
+    status.textContent='M10で保存した4色データを読み込みました。';
+    status.className='status ok';
+    return true;
+  }catch(err){
+    savedData=null;
+    document.getElementById('generate').disabled=true;
+    status.textContent='保存データを読み込めませんでした。M10で保存し直してください。';
+    status.className='status warn';
+    return false;
+  }
+}
+function arr(v){
+  return `{${Number(v.r).toFixed(3)}f, ${Number(v.g).toFixed(3)}f, ${Number(v.b).toFixed(3)}f}`;
+}
+document.getElementById('load').addEventListener('click',()=>loadSaved(false));
+document.getElementById('generate').addEventListener('click',()=>{
+  if(!savedData){document.getElementById('message').textContent='先にM10の保存データを読み込んでください。';return;}
+  let out=CODE_TEMPLATE;
+  out=out.replace('{{REF_WHITE}}',arr(savedData.white));
+  out=out.replace('{{REF_RED}}',arr(savedData.red));
+  out=out.replace('{{REF_BLUE}}',arr(savedData.blue));
+  out=out.replace('{{REF_YELLOW}}',arr(savedData.yellow));
+  document.getElementById('code').value=out;
+  document.getElementById('message').textContent='最終統合コードができました。全部コピーしてArduino IDEに貼りつけてください。';
+});
+document.getElementById('copy').addEventListener('click',async()=>{
+  const e=document.getElementById('code');
+  if(!e.value){document.getElementById('message').textContent='先に最終コードを作ってください。';return;}
+  try{await navigator.clipboard.writeText(e.value);}
+  catch(err){e.focus();e.select();document.execCommand('copy');}
+  document.getElementById('message').textContent='コピーしました。';
+});
+loadSaved(true);
+</script>
+</body></html>
