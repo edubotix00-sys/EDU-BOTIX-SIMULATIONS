@@ -47,7 +47,8 @@ void show(const char* line1, const char* line2 = "") {
 }
 
 uint8_t findOledAddress() {
-  for (uint8_t addr : {uint8_t(0x3C), uint8_t(0x3D)}) {
+  const uint8_t candidates[] = {0x3C, 0x3D};
+  for (uint8_t addr : candidates) {
     Wire.beginTransmission(addr);
     if (Wire.endTransmission() == 0) return addr;
   }
