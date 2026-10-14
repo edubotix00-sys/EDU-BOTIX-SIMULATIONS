@@ -154,6 +154,32 @@ bool capture(Capture &c){
 }
 
 uint8_t accepted=0;
+bool patternOK(Capture &c){
+  float first=c.values[0],minVal=1000,maxVal=-1000;
+  for(int i=0;i<N;i++){
+    if(c.values[i]<minVal)minVal=c.values[i];
+    if(c.values[i]>maxVal)maxVal=c.values[i];
+  }
+  float amp=first-minVal;
+  if(amp<7){c.reason="MOVE BIGGER";return false;}
+  float in=first-amp*0.55f, out=first-amp*0.25f;
+  bool near=false;int trips=0;
+  int streak=0,longest=0;
+  for(int i=0;i<N;i++){
+    float v=c.values[i];
+    if(!near&&v<in)near=true;
+    else if(near&&v>out){trips++;near=false;}
+    if(v<=minVal+amp*0.22f){
+      streak++;if(streak>longest)longest=streak;
+    }else streak=0;
+  }
+  if(accepted<3 && trips!=2){c.reason="DOUBLE: TWO PUSHES";return false;}
+  if(accepted>=3 && accepted<6 && (trips!=1||longest<6)){
+    c.reason="HOLD: STAY CLOSE";return false;
+  }
+  return true;
+}
+
 void stopMotors(){
   digitalWrite(PIN_STBY,LOW);
   digitalWrite(PIN_PWMA,LOW); digitalWrite(PIN_PWMB,LOW);
@@ -183,7 +209,9 @@ void loop(){
   stopMotors();
   if(buttonPressed()){
     Capture c;
-    if(capture(c)){
+    bool ok=capture(c);
+    if(ok)ok=patternOK(c);
+    if(ok){
       Serial.print("SAMPLE,");
       Serial.print(nextLabel());
       Serial.print(",");
