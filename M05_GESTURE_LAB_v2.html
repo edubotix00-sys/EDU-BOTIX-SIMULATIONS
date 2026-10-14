@@ -109,7 +109,7 @@ function check(s,labelCheck=true){
  if(Math.abs(s.values[0]-s.values[31])>5)return '最後に最初の位置まで戻っていません。';
  if(shape(s.values).amp<7)return '動きが小さすぎます。';
  if(labelCheck&&s.kind===0&&dips(s.values)!==2)return 'DOUBLEの2回の山がありません。途中で切れたかもしれません。';
- if(labelCheck&&s.kind===1&&(dips(s.values)!==1||plateau(s.values)<4))
+ if(labelCheck&&s.kind===1&&(dips(s.values)!==1||plateau(s.values)<6))
   return 'HOLDの「1回押してしばらく止める」が確認できません。';
  return '';
 }
