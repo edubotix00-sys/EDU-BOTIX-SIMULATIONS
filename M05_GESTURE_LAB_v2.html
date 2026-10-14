@@ -1,0 +1,232 @@
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M05 AI GESTURE LAB 90分版｜EDU-BOTIX</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#eaffee;background:#0c241a;--line:#50775c;--card:#173827;--lime:#c0f178}
+*{box-sizing:border-box}body{margin:0;padding:16px}main{max-width:990px;margin:auto}
+h1{font-size:clamp(28px,4vw,40px)}h2{font-size:21px;margin:0 0 12px}p,li{line-height:1.65}
+section{background:var(--card);padding:20px;border:1px solid var(--line);border-radius:18px;margin:18px 0}
+.tag{background:var(--lime);color:#173827;padding:7px 14px;border-radius:22px;display:inline-block;font-weight:900}
+.note{border-left:4px solid var(--lime);background:#25533b;padding:12px;border-radius:8px}
+.warn{border-left:4px solid #ffcb85;background:#4b3820;padding:12px;border-radius:8px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.chip{border:1px solid #7ba07d;border-radius:24px;padding:7px 12px;font-size:13px}
+button{background:var(--lime);color:#173827;font-weight:bold;border:none;border-radius:8px;padding:11px 14px;cursor:pointer;margin:6px 7px 6px 0}
+button.sub{background:#386d51;color:#fff}
+textarea,input,select{width:100%;color:#f0fff2;background:#0a2518;border:1px solid #7ba07d;border-radius:9px;padding:10px;font:14px/1.55 ui-monospace,monospace}
+textarea{min-height:132px;resize:vertical}#code{min-height:330px}#collector{min-height:230px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.status{min-height:22px;white-space:pre-line;font-size:14px;color:#dcf3bb}.err{color:#ffbea6}
+svg{max-height:240px;width:100%;background:#092315;border:1px solid var(--line);border-radius:10px}
+a{color:#d3ff9e}
+@media(max-width:650px){.row{grid-template-columns:1fr}section{padding:14px}}
+</style></head><body><main>
+<span class="tag">MISSION 05 · 90分版</span><h1>AIジェスチャーコマンダー</h1>
+<p><b>DOUBLE</b>と<b>HOLD</b>、2種類だけを学習。記録時間は自動。最後に学習済みロボット用プログラムを生成しよう。</p>
+<div class="note">車輪を床から浮かせて試そう。記録中はモーターを動かしません。</div>
+<section><h2>STEP 1｜2種類 × 3回、計6回記録</h2>
+<div class="chips"><span class="chip">DOUBLE：近づける→戻す→近づける→戻す（3回）</span>
+<span class="chip">HOLD：近づける→少し止める→戻す（3回）</span></div>
+<p>ESP32に記録用コードを書きこみ、シリアルモニターを115200bpsで開こう。<b>DOUBLE 1/3</b>から始まり、3回成功するとHOLDに進む。手を25〜35cmあたりで止めてボタンを押し、カウント後にジェスチャー。動き始めると自動で記録し、元の場所で約0.7秒静止すると終了する。</p>
+<p><a href="https://github.com/edubotix00-sys/EDU-BOTIX-SIMULATIONS/blob/main/M05_GESTURE_COLLECT_v2.ino" target="_blank" rel="noopener">記録用コードをGitHubで開く</a></p>
+<details><summary>記録用コードをここで表示</summary><textarea id="collector" readonly placeholder="記録用コードを読み込み中…"></textarea>
+<button id="copyCollector">記録用コードをコピー</button><p id="collectorMsg" class="status"></p></details>
+<p><b>SAVED!</b>が6回表示されたら、シリアルモニターの全ログを一度にコピー。下に貼るだけ。関係ない行や「RETRY」は自動で無視される。</p>
+<textarea id="bulk" placeholder="シリアルモニターを全選択・コピーしてここに貼りつける"></textarea>
+<button id="register">6組をまとめて登録</button><p id="bulkMsg" class="status"></p>
+<div id="counter" class="chips"></div>
+<svg id="plot" viewBox="0 0 540 210" aria-label="距離の変化のグラフ"></svg>
+<p>データは同じブラウザ内に自動保存。別端末へ移す場合はJSONを保存しよう。</p>
+<button class="sub" id="export">JSONを保存</button>
+<button class="sub" id="import">JSONを読み込む</button>
+<button class="sub" id="clear">最初からやり直す</button>
+<input id="file" type="file" accept=".json,application/json" style="display:none">
+</section>
+<section><h2>STEP 2｜AIを学習させよう</h2>
+<p>正しい見本が6つそろったら、<b>k-NN＋DTW</b>で近い距離波形を比べられるようにする。</p>
+<button id="train">学習する</button><p id="trainMsg" class="status"></p>
+<label for="limit">分からない動きとして止める基準（1〜15）</label>
+<input id="limit" type="number" min="1" max="15" step=".1" value="4.0">
+<p class="warn">記録の品質チェックとAIの判定は別です。DOUBLEが1回で切れたデータ、HOLDで止まっていないデータは学習用として登録できません。</p>
+</section>
+<section><h2>STEP 3｜初めての動きで試そう</h2>
+<p>記録コードはそのままでOK。6回記録した後は<b>TEST</b>モード。新しいDOUBLEとHOLDをそれぞれ2回ずつ記録し、下で予想させよう。</p>
+<textarea id="test" placeholder="SAMPLE,TEST,1900,28.0, …（32個の数字）"></textarea>
+<div class="row"><div><label for="answer">実際に動かした合図</label>
+<select id="answer"><option value="0">DOUBLE</option><option value="1">HOLD</option><option value="2">知らない動き</option></select></div>
+<div><button id="predict">AIに予想させる</button><p id="predictMsg" class="status"></p></div></div>
+<p id="score" class="status"></p>
+</section>
+<section><h2>STEP 4｜ロボットの完成コードを作る</h2>
+<p>学習した実際の6組をコードに組み込む。DOUBLEは短い前進、HOLDは短い右折。UNKNOWN・測定失敗は停止。<b>車輪を浮かせたまま</b>動作確認しよう。</p>
+<button id="generate">完成コードを生成</button><button class="sub" id="copyFinal">完成コードをコピー</button>
+<p id="generateMsg" class="status"></p>
+<textarea id="code" readonly placeholder="ここにArduino-ESP32 3.x用の完全版コードを生成します。"></textarea>
+<div class="warn">配線の抜き差しや書き込み前にはモーター用電池を外そう。電池のみでの再起動や異常動作があればテストを中止してください。</div>
+</section>
+</main><script>
+const CPP_TEMPLATE="// EDU-BOTIX M05 90-minute edition, Arduino-ESP32 Core 3.x\n// HC-SR04P 3.3V: TRIG=5, ECHO=18. OLED I2C: SDA=21, SCL=22.\n// Button: GPIO4 to GND. Motor driver: TB6612FNG.\n// IMPORTANT: Keep the wheels OFF THE GROUND in this lesson.\n#include <Arduino.h>\n#include <Wire.h>\n#include <Adafruit_GFX.h>\n#include <Adafruit_SSD1306.h>\n#include <math.h>\n\nconst uint8_t PIN_TRIG=5, PIN_ECHO=18, PIN_BUTTON=4;\nconst uint8_t PIN_STBY=13, PIN_AIN1=33, PIN_AIN2=25, PIN_PWMA=32;\nconst uint8_t PIN_BIN1=26, PIN_BIN2=27, PIN_PWMB=14;\nconst int N=32, RAW_CAP=96;\nconst unsigned long PERIOD=70, QUIET_MS=700, MAX_MS=5000;\nfloat rawBuffer[RAW_CAP];\nAdafruit_SSD1306 screen(128,64,&Wire,-1);\n\nvoid show(const char* top,const char* lower=\"\"){\n  screen.clearDisplay(); screen.setTextColor(SSD1306_WHITE);\n  screen.setTextSize(2); screen.setCursor(0,4); screen.println(top);\n  screen.setTextSize(1); screen.setCursor(0,42); screen.println(lower);\n  screen.display();\n}\nuint8_t findOled(){\n  const uint8_t addr[]={0x3C,0x3D};\n  for(uint8_t x:addr){\n    Wire.beginTransmission(x);\n    if(Wire.endTransmission()==0)return x;\n  }\n  return 0;\n}\nvoid preparePins(){\n  pinMode(PIN_TRIG,OUTPUT);digitalWrite(PIN_TRIG,LOW);\n  pinMode(PIN_ECHO,INPUT);pinMode(PIN_BUTTON,INPUT_PULLUP);\n  pinMode(PIN_STBY,OUTPUT);pinMode(PIN_AIN1,OUTPUT);\n  pinMode(PIN_AIN2,OUTPUT);pinMode(PIN_BIN1,OUTPUT);\n  pinMode(PIN_BIN2,OUTPUT);pinMode(PIN_PWMA,OUTPUT);pinMode(PIN_PWMB,OUTPUT);\n  // Do not enable the motor driver while capturing gestures.\n  digitalWrite(PIN_STBY,LOW);\n  digitalWrite(PIN_AIN1,LOW);digitalWrite(PIN_AIN2,LOW);\n  digitalWrite(PIN_BIN1,LOW);digitalWrite(PIN_BIN2,LOW);\n}\nfloat readCm(){\n  digitalWrite(PIN_TRIG,LOW);delayMicroseconds(3);\n  digitalWrite(PIN_TRIG,HIGH);delayMicroseconds(10);\n  digitalWrite(PIN_TRIG,LOW);\n  unsigned long t=pulseIn(PIN_ECHO,HIGH,18000UL);\n  if(t==0)return -1;\n  return float(t)*0.0343f/2.0f;\n}\nbool buttonPressed(){\n  static bool previous=HIGH,stable=HIGH;\n  static unsigned long changed=0;\n  bool current=digitalRead(PIN_BUTTON);\n  if(current!=previous)changed=millis();\n  previous=current;\n  if(millis()-changed>=35 && stable!=current){\n    stable=current;\n    return stable==LOW;\n  }\n  return false;\n}\nbool timedRead(unsigned long &next,float &d){\n  // Sampling cadence never depends on the student's gesture duration.\n  while((long)(millis()-next)<0)delay(1);\n  d=readCm();\n  next+=PERIOD;\n  return d>=7.0f && d<=65.0f;\n}\nvoid resample(const float* input,int count,float output[N]){\n  for(int k=0;k<N;k++){\n    float pos=float(k)*(count-1)/(N-1);\n    int a=int(pos);\n    int b=(a+1<count)?a+1:a;\n    float f=pos-a;\n    output[k]=input[a]*(1-f)+input[b]*f;\n  }\n}\nstruct Capture {\n  float values[N];\n  unsigned long duration;\n  const char* reason;\n};\nbool capture(Capture &c){\n  c.reason=\"MEASURE ERROR\";c.duration=0;\n  show(\"READY\",\"Keep palm still at 25-35cm\");\n  delay(650);\n  for(int n=3;n>0;n--){\n    char num[8];snprintf(num,sizeof(num),\"%d\",n);\n    show(num,\"Keep your hand still\");delay(450);\n  }\n  show(\"WAIT\",\"Move when you are ready\");\n  // Establish baseline from several stable samples.\n  float baseRead[10];float lo=1000,hi=0;\n  unsigned long next=millis();\n  for(int i=0;i<10;i++){\n    if(!timedRead(next,baseRead[i])){c.reason=\"SENSOR ERROR\";return false;}\n    if(baseRead[i]<lo)lo=baseRead[i];\n    if(baseRead[i]>hi)hi=baseRead[i];\n  }\n  if(hi-lo>2.5f){c.reason=\"HOLD STILL\";return false;}\n  float base=0;\n  for(float v:baseRead)base+=v;\n  base/=10.0f;\n  if(base<18 || base>43){c.reason=\"START 20-40cm\";return false;}\n  // Detect the first real movement; timeout if no gesture begins.\n  int triggerCount=0;\n  float prev[4]={base,base,base,base};\n  unsigned long waitUntil=millis()+6000;\n  while(millis()<waitUntil){\n    float v;\n    if(!timedRead(next,v)){c.reason=\"SENSOR ERROR\";return false;}\n    prev[0]=prev[1];prev[1]=prev[2];prev[2]=prev[3];prev[3]=v;\n    if(fabsf(v-base)>=4.5f)triggerCount++;else triggerCount=0;\n    if(triggerCount>=2)break;\n  }\n  if(triggerCount<2){c.reason=\"NO MOVEMENT\";return false;}\n  show(\"REC\",\"Finish and hold at start\");\n  // Keep a little of the pre-trigger baseline, so the whole curve is captured.\n  int n=4;\n  for(int i=0;i<4;i++)rawBuffer[i]=prev[i];\n  unsigned long began=millis();\n  unsigned long returnedAt=0;\n  float minValue=1000,maxValue=-1000;\n  for(int i=0;i<n;i++){\n    if(rawBuffer[i]<minValue)minValue=rawBuffer[i];\n    if(rawBuffer[i]>maxValue)maxValue=rawBuffer[i];\n  }\n  bool completed=false;\n  while(millis()-began<MAX_MS && n<RAW_CAP){\n    float d;\n    if(!timedRead(next,d)){c.reason=\"SENSOR ERROR\";return false;}\n    if(fabsf(d-rawBuffer[n-1])>19.0f){c.reason=\"SUDDEN JUMP\";return false;}\n    rawBuffer[n++]=d;\n    if(d<minValue)minValue=d;\n    if(d>maxValue)maxValue=d;\n    unsigned long elapsed=millis()-began;\n    if(elapsed>1000 && fabsf(d-base)<3.8f){\n      if(returnedAt==0)returnedAt=millis();\n      if(millis()-returnedAt>=QUIET_MS){\n        completed=true;\n        break;\n      }\n    }else returnedAt=0;\n  }\n  if(!completed){c.reason=\"NOT FINISHED\";return false;}\n  if(maxValue-minValue<7.0f){c.reason=\"MOVE BIGGER\";return false;}\n  if(n<12){c.reason=\"TOO SHORT\";return false;}\n  c.duration=millis()-began;\n  if(c.duration<1000 || c.duration>MAX_MS){c.reason=\"BAD DURATION\";return false;}\n  resample(rawBuffer,n,c.values);\n  c.reason=\"OK\";return true;\n}\n\n\nconst int TRAIN_COUNT=6,K=3;\nconst float ACCEPT_LIMIT=%LIMIT%f;\nconst float TRAINING[TRAIN_COUNT][N]={\n%TRAINING%\n};\nconst uint8_t LABELS[TRAIN_COUNT]={0,0,0,1,1,1};\nconst uint16_t DURATIONS[TRAIN_COUNT]={%DURATIONS%};\nfloat dtwA[N+1],dtwB[N+1];\nbool driving=false;\nunsigned long startedAt=0,lastRamp=0;\nint powerNow=0,action=0;\n\nvoid motorOff(){\n  ledcWriteChannel(0,0);ledcWriteChannel(2,0);\n  digitalWrite(PIN_STBY,LOW);\n  digitalWrite(PIN_AIN1,LOW);digitalWrite(PIN_AIN2,LOW);\n  digitalWrite(PIN_BIN1,LOW);digitalWrite(PIN_BIN2,LOW);\n  driving=false;powerNow=0;\n}\nfloat median3(float a,float b,float c){\n  if(a>b){float t=a;a=b;b=t;}\n  if(b>c){float t=b;b=c;c=t;}\n  if(a>b){float t=a;a=b;b=t;}\n  return b;\n}\nfloat makeShape(const float in[N],float out[N]){\n  float data[N],lo=1000,hi=-1000;\n  for(int i=0;i<N;i++){\n    data[i]=median3(in[i==0?0:i-1],in[i],in[i==N-1?N-1:i+1]);\n    if(data[i]<lo)lo=data[i];if(data[i]>hi)hi=data[i];\n  }\n  for(int i=0;i<N;i++)out[i]=data[i]-data[0];\n  return hi-lo;\n}\nfloat distanceDTW(const float a[N],const float b[N]){\n  const float INF=1e9f;\n  for(int j=0;j<=N;j++)dtwA[j]=INF;\n  dtwA[0]=0;\n  for(int i=1;i<=N;i++){\n    for(int j=0;j<=N;j++)dtwB[j]=INF;\n    for(int j=1;j<=N;j++){\n      if(abs(i-j)>6)continue;\n      float v=fminf(dtwA[j],fminf(dtwB[j-1],dtwA[j-1]));\n      dtwB[j]=v+fabsf(a[i-1]-b[j-1]);\n    }\n    for(int j=0;j<=N;j++)dtwA[j]=dtwB[j];\n  }\n  return dtwA[N]/N;\n}\nint classify(const Capture &c,float &nearest){\n  float query[N],example[N];\n  if(makeShape(c.values,query)<7){nearest=999;return -1;}\n  float dists[K]={1e9f,1e9f,1e9f};\n  int labels[K]={-1,-1,-1};\n  for(int t=0;t<TRAIN_COUNT;t++){\n    makeShape(TRAINING[t],example);\n    float d=distanceDTW(query,example)+fabsf(float(c.duration)-DURATIONS[t])*0.0025f;\n    for(int k=0;k<K;k++){\n      if(d<dists[k]){\n        for(int j=K-1;j>k;j--){dists[j]=dists[j-1];labels[j]=labels[j-1];}\n        dists[k]=d;labels[k]=LABELS[t];break;\n      }\n    }\n  }\n  nearest=dists[0];\n  int votes[2]={0,0};\n  for(int k=0;k<K;k++)if(labels[k]>=0&&labels[k]<=1)votes[labels[k]]++;\n  if(dists[0]>ACCEPT_LIMIT || dists[1]>ACCEPT_LIMIT*1.4f)return -1;\n  return votes[0]>=2?0:votes[1]>=2?1:-1;\n}\nvoid motorStart(int which){\n  motorOff();action=which;\n  digitalWrite(PIN_AIN1,LOW);digitalWrite(PIN_AIN2,HIGH);\n  digitalWrite(PIN_BIN1,which==1?LOW:HIGH);\n  digitalWrite(PIN_BIN2,which==1?HIGH:LOW);\n  digitalWrite(PIN_STBY,HIGH);\n  driving=true;startedAt=millis();lastRamp=0;powerNow=0;\n}\nvoid motorTick(){\n  if(!driving)return;\n  unsigned long now=millis();\n  if(now-startedAt>=850){motorOff();show(\"READY\",\"Press for next gesture\");return;}\n  if(now-lastRamp<45)return;\n  lastRamp=now;\n  powerNow+=10;if(powerNow>125)powerNow=125;\n  ledcWriteChannel(0,powerNow);\n  ledcWriteChannel(2,action==1?min(255,powerNow+15):powerNow);\n}\nvoid runGesture(){\n  motorOff();Capture c;\n  if(!capture(c)){\n    Serial.print(\"RETRY: \");Serial.println(c.reason);\n    show(\"RETRY\",c.reason);delay(1000);show(\"READY\",\"Press button\");\n    return;\n  }\n  float diff=0;\n  int found=classify(c,diff);\n  Serial.print(\"Nearest score: \");Serial.println(diff,2);\n  if(found==0){show(\"DOUBLE\",\"Short forward\");motorStart(1);}\n  else if(found==1){show(\"HOLD\",\"Short right\");motorStart(2);}\n  else{motorOff();show(\"UNKNOWN\",\"Motors STOP\");}\n}\nvoid setup(){\n  preparePins();\n  Serial.begin(115200);\n  bool a=ledcAttachChannel(PIN_PWMA,20000,8,0);\n  bool b=ledcAttachChannel(PIN_PWMB,20000,8,2);\n  if(!a||!b){Serial.println(\"PWM ERROR\");while(true)delay(100);}\n  motorOff();Wire.begin(21,22);\n  uint8_t addr=findOled();\n  if(!addr||!screen.begin(SSD1306_SWITCHCAPVCC,addr)){\n    Serial.println(\"OLED ERROR\");while(true){motorOff();delay(100);}\n  }\n  show(\"M05 AI\",\"Wheels OFF ground!\");\n  Serial.println(\"Ready. Press button to recognize gesture.\");\n}\nvoid loop(){\n  motorTick();\n  if(buttonPressed()){\n    if(driving){motorOff();show(\"STOP\",\"Press button to retry\");}\n    else runGesture();\n  }\n  delay(8);\n}\n";
+const N=32,KEY='edubotix_m05_90min_v2';
+const el=id=>document.getElementById(id);
+let samples=[],learned=false,attempts=[];
+function msg(id,s,error=false){el(id).textContent=s;el(id).className='status'+(error?' err':'');}
+function parse(line){
+ const a=line.trim().split(',').map(x=>x.trim());
+ if(a[0]!=='SAMPLE'||!['DOUBLE','HOLD','TEST'].includes(a[1])||a.length!==35)
+  throw Error('SAMPLE,動作名,記録時間,距離32個 の1行を貼ってね。');
+ const duration=Number(a[2]),values=a.slice(3).map(Number);
+ if(!Number.isInteger(duration)||values.length!==N||values.some(v=>!Number.isFinite(v)))
+  throw Error('記録データの数字がおかしいよ。');
+ return {kind:a[1]==='DOUBLE'?0:a[1]==='HOLD'?1:2,duration,values};
+}
+function median3(a,b,c){return [a,b,c].sort((x,y)=>x-y)[1];}
+function shape(a){
+ const f=a.map((x,i)=>median3(a[i===0?0:i-1],x,a[i===31?31:i+1]));
+ return {v:f.map(x=>x-f[0]),amp:Math.max(...f)-Math.min(...f)};
+}
+function dips(a){
+ const first=a[0],min=Math.min(...a),amp=first-min;
+ if(amp<7)return 0;
+ const low=first-amp*.55, high=first-amp*.25;
+ let active=false,count=0;
+ for(const v of a){
+  if(!active&&v<low)active=true;
+  else if(active&&v>high){count++;active=false;}
+ }
+ return count;
+}
+function plateau(a){
+ const first=a[0],min=Math.min(...a),amp=first-min;
+ let run=0,best=0;
+ for(const v of a){
+  if(v<=min+amp*.22){run++;best=Math.max(run,best);}
+  else run=0;
+ }
+ return best;
+}
+function check(s,labelCheck=true){
+ if(s.duration<1000||s.duration>5000)return '時間が短すぎる／長すぎるデータです。';
+ if(s.values.some(v=>v<7||v>65))return '測定できる範囲から手が外れています。';
+ if(Math.abs(s.values[0]-s.values[31])>5)return '最後に最初の位置まで戻っていません。';
+ if(shape(s.values).amp<7)return '動きが小さすぎます。';
+ if(labelCheck&&s.kind===0&&dips(s.values)!==2)return 'DOUBLEの2回の山がありません。途中で切れたかもしれません。';
+ if(labelCheck&&s.kind===1&&(dips(s.values)!==1||plateau(s.values)<4))
+  return 'HOLDの「1回押してしばらく止める」が確認できません。';
+ return '';
+}
+function dtw(a,b){
+ let prev=Array(N+1).fill(Infinity);prev[0]=0;
+ for(let i=1;i<=N;i++){
+  const next=Array(N+1).fill(Infinity);
+  for(let j=Math.max(1,i-6);j<=Math.min(N,i+6);j++)
+   next[j]=Math.abs(a[i-1]-b[j-1])+Math.min(prev[j],next[j-1],prev[j-1]);
+  prev=next;
+ }
+ return prev[N]/N;
+}
+function distance(a,b){
+ return dtw(shape(a.values).v,shape(b.values).v)+Math.abs(a.duration-b.duration)*.0025;
+}
+function evaluate(s){
+ const bad=check(s,false);if(bad)return {kind:-1,score:Infinity,reason:bad};
+ const nearest=samples.map(x=>({kind:x.kind,d:distance(s,x)})).sort((a,b)=>a.d-b.d).slice(0,3);
+ const count=[0,0];nearest.forEach(x=>count[x.kind]++);
+ let kind=count[0]>=2?0:count[1]>=2?1:-1;
+ const limit=Number(el('limit').value);
+ if(!Number.isFinite(limit)||limit<1||limit>15)throw Error('判定基準は1〜15で入力してね。');
+ if(nearest[0].d>limit||nearest[1].d>limit*1.4)kind=-1;
+ return {kind,score:nearest[0].d};
+}
+function redraw(){
+ el('counter').innerHTML=['DOUBLE','HOLD'].map((t,i)=>'<span class="chip">'+t+' '+samples.filter(s=>s.kind===i).length+'組</span>').join('');
+ const a=samples[0]?.values||Array(32).fill(26);
+ let out='';
+ for(let y=0;y<=4;y++)out+='<line x1="44" x2="530" y1="'+(16+y*41)+'" y2="'+(16+y*41)+'" stroke="#477b52" stroke-opacity=".45"/>';
+ const pts=a.map((x,i)=>(44+i*485/31).toFixed(1)+','+(188-Math.min(65,Math.max(0,x))*2.6).toFixed(1)).join(' ');
+ out+='<polyline points="'+pts+'" fill="none" stroke="#c0f178" stroke-width="3"/>';
+ out+='<text x="12" y="20" fill="#d4e8c8" font-size="11">距離</text><text x="528" y="203" fill="#d4e8c8" font-size="11" text-anchor="end">時間 →</text>';
+ el('plot').innerHTML=out;
+}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(samples));}catch(e){}}
+function invalidate(){learned=false;attempts=[];el('code').value='';msg('score','');}
+el('register').addEventListener('click',()=>{
+ try{
+  const lines=el('bulk').value.split(/\r?\n/).map(x=>x.trim()).filter(x=>x.startsWith('SAMPLE,')&&!x.startsWith('SAMPLE,TEST,'));
+  if(lines.length!==6)throw Error('DOUBLE 3行とHOLD 3行が必要です。現在：'+lines.length+'行');
+  if(new Set(lines).size!==6)throw Error('まったく同じ行が重複しています。');
+  const data=lines.map(parse);
+  for(let i=0;i<6;i++){
+   if(data[i].kind!==(i<3?0:1))throw Error('順番はDOUBLE 3行 → HOLD 3行です。');
+   const invalid=check(data[i]);if(invalid)throw Error((i+1)+'行目：'+invalid+' 再記録してください。');
+  }
+  samples=data;persist();invalidate();redraw();msg('bulkMsg','6組を登録できました。STEP2へ！');
+ }catch(e){msg('bulkMsg',e.message,true);}
+});
+el('train').addEventListener('click',()=>{
+ try{
+  if(samples.length!==6)throw Error('先に6組を登録してね。');
+  const within=samples.map((s,i)=>Math.min(...samples.filter((t,j)=>j!==i&&t.kind===s.kind).map(t=>distance(s,t))));
+  const between=samples.map(s=>Math.min(...samples.filter(t=>s.kind!==t.kind).map(t=>distance(s,t))));
+  const worst=Math.max(...within),gap=Math.min(...between);
+  const recommended=Math.max(1.8,Math.min(12,Math.min(worst*1.5+.7,gap*.82)));
+  el('limit').value=recommended.toFixed(1);learned=true;
+  msg('trainMsg','学習できました！ 6組から最も似た3組を探すよ。判定基準：'+recommended.toFixed(1)+(worst>=gap?'\n注意：2種類の見本が似すぎる可能性があります。':''));
+ }catch(e){msg('trainMsg',e.message,true);}
+});
+el('predict').addEventListener('click',()=>{
+ try{
+  if(!learned)throw Error('先に学習ボタンを押してね。');
+  const line=el('test').value.split(/\r?\n/).map(x=>x.trim()).find(x=>x.startsWith('SAMPLE,'));
+  if(!line)throw Error('SAMPLE,TEST,… の行を入力してください。');
+  const s=parse(line);if(s.kind!==2)throw Error('TESTのデータを使おう。');
+  const r=evaluate(s),name=r.kind<0?'UNKNOWN':r.kind===0?'DOUBLE':'HOLD';
+  const expect=Number(el('answer').value);const ok=r.kind===(expect===2?-1:expect);
+  attempts.push(ok);
+  msg('predictMsg',name+' と判定！ '+(ok?'正解':'不正解')+(r.reason?'\n'+r.reason:''));
+  msg('score','正解：'+attempts.filter(Boolean).length+' / '+attempts.length+'回');
+ }catch(e){msg('predictMsg',e.message,true);}
+});
+el('limit').addEventListener('change',()=>{el('code').value='';});
+el('generate').addEventListener('click',()=>{
+ try{
+  if(!learned||samples.length!==6)throw Error('先に6組を学習させてね。');
+  const lim=Number(el('limit').value);
+  if(!Number.isFinite(lim)||lim<1||lim>15)throw Error('判定基準は1〜15で入力してね。');
+  const arr=samples.map(s=>'  {'+s.values.map(x=>Number(x).toFixed(2)+'f').join(', ')+'}').join(',\n');
+  el('code').value=CPP_TEMPLATE.replace('%TRAINING%',arr).replace('%DURATIONS%',samples.map(s=>s.duration).join(', ')).replace('%LIMIT%',lim.toFixed(2));
+  msg('generateMsg','生成できました。全体をコピーして書きこもう。');
+ }catch(e){msg('generateMsg',e.message,true);}
+});
+async function copy(t,where){
+ if(!t||t.startsWith('記録用コードを読み込み中')){msg(where,'コードが読み込めません。GitHubリンクから開いてね。',true);return;}
+ try{await navigator.clipboard.writeText(t);msg(where,'コピーできました。');}
+ catch(e){const area=where==='collectorMsg'?el('collector'):el('code');area.select();document.execCommand('copy');msg(where,'コピーを試みました。Arduino IDEに貼りつけて確認してね。');}
+}
+el('copyCollector').addEventListener('click',()=>copy(el('collector').value,'collectorMsg'));
+el('copyFinal').addEventListener('click',()=>copy(el('code').value,'generateMsg'));
+el('export').addEventListener('click',()=>{
+ const blob=new Blob([JSON.stringify({version:2,training:samples},null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='M05_GESTURE_90MIN.json';a.click();URL.revokeObjectURL(url);
+});
+el('import').addEventListener('click',()=>el('file').click());
+el('file').addEventListener('change',async e=>{
+ try{
+  if(!e.target.files[0])return;
+  const data=JSON.parse(await e.target.files[0].text());
+  if(data.version!==2||!Array.isArray(data.training)||data.training.length!==6)throw Error('90分版の正しいJSONではありません。');
+  for(let i=0;i<6;i++){const s=data.training[i];if(!s||s.kind!==(i<3?0:1)||!Array.isArray(s.values)||s.values.length!==32||s.values.some(v=>!Number.isFinite(v))||check(s))throw Error((i+1)+'組目のデータがおかしいです。');}
+  samples=data.training;persist();invalidate();redraw();msg('bulkMsg','読み込み完了！');
+ }catch(e){msg('bulkMsg',e.message,true);}
+ el('file').value='';
+});
+el('clear').addEventListener('click',()=>{
+ if(!confirm('登録した6組のデータを削除していいですか？'))return;
+ samples=[];persist();invalidate();redraw();msg('bulkMsg','削除しました。');
+});
+try{
+ const x=JSON.parse(localStorage.getItem(KEY)||'[]');
+ if(Array.isArray(x)&&x.length===6&&x.every((s,i)=>s?.kind===(i<3?0:1)&&Array.isArray(s?.values)&&s.values.length===32&&!check(s)))samples=x;
+}catch(e){}
+redraw();
+fetch('./M05_GESTURE_COLLECT_v2.ino').then(r=>{if(!r.ok)throw Error();return r.text();})
+.then(x=>el('collector').value=x).catch(()=>el('collector').value='GitHubの記録用コードを開いてコピーしてください。');
+</script></body></html>
