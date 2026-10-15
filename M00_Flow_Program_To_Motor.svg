@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-label="パソコンでプログラムを書き込むと、ESP32が命令を実行し、モーターに合図を送ってタイヤが回る図">
+  <rect width="1200" height="260" rx="20" fill="#f5f9ff"/>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8.8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#536d92"/></marker>
+  </defs>
+  <rect x="25" y="53" width="295" height="160" rx="16" fill="#e2eeff" stroke="#6d91c7" stroke-width="2.2"/>
+  <rect x="454" y="53" width="292" height="160" rx="16" fill="#e1f4f1" stroke="#5b9d95" stroke-width="2.2"/>
+  <rect x="880" y="53" width="295" height="160" rx="16" fill="#fff0dc" stroke="#d8a75e" stroke-width="2.2"/>
+  <g font-family="Arial,'Hiragino Kaku Gothic ProN','Noto Sans JP',Meiryo,sans-serif" fill="#153252" text-anchor="middle">
+    <text x="172" y="104" font-size="27" font-weight="700">パソコン</text>
+    <text x="172" y="150" font-size="21">「3秒タイヤを回して！」</text>
+    <text x="600" y="102" font-size="28" font-weight="700">ESP32</text>
+    <text x="600" y="146" font-size="22">命令を順番に実行</text>
+    <text x="1028" y="104" font-size="27" font-weight="700">モーター</text>
+    <text x="1028" y="150" font-size="22">タイヤが回る！</text>
+    <text x="386" y="102" font-size="17" font-weight="600">プログラムを</text>
+    <text x="386" y="126" font-size="17" font-weight="600">書き込む</text>
+    <text x="811" y="118" font-size="19" font-weight="600">合図を送る</text>
+  </g>
+  <path d="M324 153 H449" stroke="#536d92" stroke-width="3.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M749 153 H875" stroke="#536d92" stroke-width="3.5" fill="none" marker-end="url(#arrow)"/>
+</svg>
