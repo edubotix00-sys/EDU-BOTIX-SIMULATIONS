@@ -90,7 +90,7 @@ bool capture(Capture &c){
     char num[8];snprintf(num,sizeof(num),"%d",n);
     show(num,"Keep your hand still");delay(450);
   }
-  show("WAIT","Move when you are ready");
+  show("WAIT","Hold still for one second");
   // Establish baseline from several stable samples.
   float baseRead[10];float lo=1000,hi=0;
   unsigned long next=millis();
@@ -104,6 +104,7 @@ bool capture(Capture &c){
   for(float v:baseRead)base+=v;
   base/=10.0f;
   if(base<18 || base>43){c.reason="START 20-40cm";return false;}
+  show("GO!","Make your hand movement");
   // Detect the first real movement; timeout if no gesture begins.
   int triggerCount=0;
   float prev[4]={base,base,base,base};
@@ -203,7 +204,7 @@ void setup(){
     while(true){stopMotors();delay(100);}
   }
   showReady();
-  Serial.println("READY: collect DOUBLE 3 times, HOLD 3 times. Afterward TEST.");
+  Serial.println("START: DOUBLE 3 times, HOLD 3 times. If you restart the ESP32, begin all 6 again.");
 }
 void loop(){
   stopMotors();
@@ -219,7 +220,7 @@ void loop(){
       for(int i=0;i<N;i++){Serial.print(",");Serial.print(c.values[i],2);}
       Serial.println();
       if(accepted<6)accepted++;
-      show("SAVED!",nextLabel());
+      show("SAVED!","Next: look at the screen");
       delay(700);
     }else{
       Serial.print("RETRY: ");Serial.println(c.reason);
