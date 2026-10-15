@@ -158,12 +158,12 @@ el('register').addEventListener('click',()=>{
    if(data[i].kind!==(i<3?0:1))throw Error('順番がちがうよ。DOUBLEから始めて6回ともやり直そう。');
    const invalid=check(data[i]);if(invalid)throw Error((i+1)+'行目：'+invalid+' 6回のお手本を最初から取り直そう。');
   }
-  samples=data;persist();invalidate();redraw();msg('bulkMsg','6組を登録できました。STEP2へ！');
+  samples=data;persist();invalidate();redraw();msg('bulkMsg','6回分のお手本がそろったよ！ 次はSTEP2へ進もう。');
  }catch(e){msg('bulkMsg',e.message,true);}
 });
 el('train').addEventListener('click',()=>{
  try{
-  if(samples.length!==6)throw Error('先に6組を登録してね。');
+  if(samples.length!==6)throw Error('先にSTEP1で6回分のお手本を入れよう。');
   const within=samples.map((s,i)=>Math.min(...samples.filter((t,j)=>j!==i&&t.kind===s.kind).map(t=>distance(s,t))));
   const between=samples.map(s=>Math.min(...samples.filter(t=>s.kind!==t.kind).map(t=>distance(s,t))));
   const worst=Math.max(...within),gap=Math.min(...between);
@@ -174,7 +174,7 @@ el('train').addEventListener('click',()=>{
 });
 el('predict').addEventListener('click',()=>{
  try{
-  if(!learned)throw Error('先に学習ボタンを押してね。');
+  if(!learned)throw Error('先にSTEP2でAIにおぼえてもらおう。');
   const line=el('test').value.split(/\r?\n/).map(x=>x.trim()).find(x=>x.startsWith('SAMPLE,'));
   if(!line)throw Error('SAMPLE,TEST,… の行を入力してください。');
   const s=parse(line);if(s.kind!==2)throw Error('TESTのデータを使おう。');
@@ -188,12 +188,12 @@ el('predict').addEventListener('click',()=>{
 el('limit').addEventListener('change',()=>{el('code').value='';});
 el('generate').addEventListener('click',()=>{
  try{
-  if(!learned||samples.length!==6)throw Error('先に6組を学習させてね。');
+  if(!learned||samples.length!==6)throw Error('先にSTEP1とSTEP2を終わらせよう。');
   const lim=Number(el('limit').value);
   if(!Number.isFinite(lim)||lim<1||lim>15)throw Error('判定基準は1〜15で入力してね。');
   const arr=samples.map(s=>'  {'+s.values.map(x=>Number(x).toFixed(2)+'f').join(', ')+'}').join(',\n');
   el('code').value=CPP_TEMPLATE.replace('%TRAINING%',arr).replace('%DURATIONS%',samples.map(s=>s.duration).join(', ')).replace('%LIMIT%',lim.toFixed(2));
-  msg('generateMsg','生成できました。全体をコピーして書きこもう。');
+  msg('generateMsg','コードができたよ！「⑥ コードをコピー」を押してArduino IDEに貼ろう。');
  }catch(e){msg('generateMsg',e.message,true);}
 });
 async function copy(t,where){
