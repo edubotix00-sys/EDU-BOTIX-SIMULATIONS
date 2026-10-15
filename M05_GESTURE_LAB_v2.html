@@ -31,7 +31,7 @@ a{color:#d3ff9e}
 <button id="copyCollector">① 最初のコードをコピー</button><p id="collectorMsg" class="status"></p><details><summary>コードの中身を見たい人は開こう</summary><textarea id="collector" readonly></textarea></details>
 <p><b>SAVED!</b>が6回表示されたら、シリアルモニターの全ログを一度にコピー。下に貼るだけ。関係ない行や「RETRY」は自動で無視される。</p>
 <textarea id="bulk" placeholder="シリアルモニターを全選択・コピーしてここに貼りつける"></textarea>
-<button id="register">6組をまとめて登録</button><p id="bulkMsg" class="status"></p>
+<button id="register">② 6回分をまとめて入れる</button><p id="bulkMsg" class="status"></p>
 <div id="counter" class="chips"></div>
 <svg id="plot" viewBox="0 0 540 210" aria-label="距離の変化のグラフ"></svg>
 <p>データは同じブラウザ内に自動保存。別端末へ移す場合はJSONを保存しよう。</p>
@@ -40,12 +40,13 @@ a{color:#d3ff9e}
 <button class="sub" id="clear">最初からやり直す</button>
 <input id="file" type="file" accept=".json,application/json" style="display:none">
 </section>
-<section><h2>STEP 2｜AIを学習させよう</h2>
-<p>正しい見本が6つそろったら、<b>k-NN＋DTW</b>で近い距離波形を比べられるようにする。</p>
-<button id="train">学習する</button><p id="trainMsg" class="status"></p>
-<label for="limit">分からない動きとして止める基準（1〜15）</label>
-<input id="limit" type="number" min="1" max="15" step=".1" value="4.0">
-<p class="warn">記録の品質チェックとAIの判定は別です。DOUBLEが1回で切れたデータ、HOLDで止まっていないデータは学習用として登録できません。</p>
+<section><h2>STEP 2｜AIにお手本をおぼえてもらおう</h2>
+<p>6回のお手本がそろったら、ボタンを押そう。AIは新しい動きと似たお手本を探して答えるんだ。</p>
+<button id="train">③ AIにおぼえてもらう</button><p id="trainMsg" class="status"></p>
+<p class="warn">手を2回動かしていなかったり、止められなかったりした記録は、正しいお手本にならないよ。もう一度集め直そう。</p>
+<details><summary>おうちの人・先生へ：AIのくわしいしくみ</summary>
+<p>分類はk-NN＋DTW方式。新しい動きと似た記録を探します。未知の動きはUNKNOWNにします。次の数字は通常そのままで使ってください。</p>
+<label for="limit">「わからない」と答える基準（1〜15）</label><input id="limit" type="number" min="1" max="15" step=".1" value="4.0"></details>
 </section>
 <section><h2>STEP 3｜初めての動きで試そう</h2>
 <p>記録コードはそのままでOK。6回記録した後は<b>TEST</b>モード。新しいDOUBLEとHOLDをそれぞれ2回ずつ記録し、下で予想させよう。</p>
