@@ -48,19 +48,19 @@ a{color:#d3ff9e}
 <p>分類はk-NN＋DTW方式。新しい動きと似た記録を探します。未知の動きはUNKNOWNにします。次の数字は通常そのままで使ってください。</p>
 <label for="limit">「わからない」と答える基準（1〜15）</label><input id="limit" type="number" min="1" max="15" step=".1" value="4.0"></details>
 </section>
-<section><h2>STEP 3｜初めての動きで試そう</h2>
-<p>記録コードはそのままでOK。6回記録した後は<b>TEST</b>モード。新しいDOUBLEとHOLDをそれぞれ2回ずつ記録し、下で予想させよう。</p>
-<textarea id="test" placeholder="SAMPLE,TEST,1900,28.0, …（32個の数字）"></textarea>
+<section><h2>STEP 3｜AIにクイズを出そう</h2>
+<p>今まで見せていない動きでも、AIは答えられるかな？ DOUBLEを2回、HOLDを2回、新しく記録しよう。ロボットの画面がTESTになったら始めてね。パソコンに出た新しい記録を1行ずつ下に入れよう。</p>
+<textarea id="test" placeholder="新しく記録した1回分の文字を貼ろう。"></textarea>
 <div class="row"><div><label for="answer">実際に動かした合図</label>
 <select id="answer"><option value="0">DOUBLE</option><option value="1">HOLD</option><option value="2">知らない動き</option></select></div>
-<div><button id="predict">AIに予想させる</button><p id="predictMsg" class="status"></p></div></div>
+<div><button id="predict">④ AIの答えを見てみよう</button><p id="predictMsg" class="status"></p></div></div>
 <p id="score" class="status"></p>
 </section>
-<section><h2>STEP 4｜ロボットの完成コードを作る</h2>
-<p>学習した実際の6組をコードに組み込む。DOUBLEは短い前進、HOLDは短い右折。UNKNOWN・測定失敗は停止。<b>車輪を浮かせたまま</b>動作確認しよう。</p>
-<button id="generate">完成コードを生成</button><button class="sub" id="copyFinal">完成コードをコピー</button>
+<section><h2>STEP 4｜手の合図でタイヤを動かそう</h2>
+<p>おぼえた動きを使って、ロボットを動かす準備をしよう。DOUBLEなら前に進む向き、HOLDなら右に曲がる向きにタイヤが少し回るよ。<b>タイヤは必ず床から浮かせよう。</b></p>
+<button id="generate">⑤ ロボット用コードを作る</button><button class="sub" id="copyFinal">⑥ コードをコピー</button>
 <p id="generateMsg" class="status"></p>
-<textarea id="code" readonly placeholder="ここにArduino-ESP32 3.x用の完全版コードを生成します。"></textarea>
+<details><summary>できあがったコードの中身を見る</summary><textarea id="code" readonly placeholder="先に「ロボット用コードを作る」を押そう。"></textarea></details>
 <div class="warn">配線の抜き差しや書き込み前にはモーター用電池を外そう。電池のみでの再起動や異常動作があればテストを中止してください。</div>
 </section>
 </main><script>
