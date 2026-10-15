@@ -197,9 +197,9 @@ el('generate').addEventListener('click',()=>{
  }catch(e){msg('generateMsg',e.message,true);}
 });
 async function copy(t,where){
- if(!t||t.startsWith('記録用コードを読み込み中')){msg(where,'コードが読み込めません。GitHubリンクから開いてね。',true);return;}
+ if(!t||t.startsWith('記録用コードを読み込み中')){msg(where,'コードがまだ見つからないよ。画面を開き直して試そう。',true);return;}
  try{await navigator.clipboard.writeText(t);msg(where,'コピーできました。');}
- catch(e){const area=where==='collectorMsg'?el('collector'):el('code');area.select();document.execCommand('copy');msg(where,'コピーを試みました。Arduino IDEに貼りつけて確認してね。');}
+ catch(e){const area=where==='collectorMsg'?el('collector'):el('code');const box=area.closest('details');if(box)box.open=true;area.focus();area.select();document.execCommand('copy');msg(where,'コピーを試みました。Arduino IDEに貼りつけて確認してね。');}
 }
 el('copyCollector').addEventListener('click',()=>copy(el('collector').value,'collectorMsg'));
 el('copyFinal').addEventListener('click',()=>copy(el('code').value,'generateMsg'));
