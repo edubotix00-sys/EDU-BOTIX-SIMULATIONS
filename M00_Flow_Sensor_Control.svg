@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="270" viewBox="0 0 1200 270" role="img" aria-label="ボタン・センサーの情報をESP32が判断し、モーター・画面・音などを動かす図">
+  <rect width="1200" height="270" rx="20" fill="#f5f9ff"/>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8.8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#536d92"/></marker></defs>
+  <rect x="22" y="58" width="302" height="164" rx="16" fill="#e2eeff" stroke="#6d91c7" stroke-width="2.2"/>
+  <rect x="448" y="58" width="303" height="164" rx="16" fill="#e1f4f1" stroke="#5b9d95" stroke-width="2.2"/>
+  <rect x="874" y="58" width="303" height="164" rx="16" fill="#fff0dc" stroke="#d8a75e" stroke-width="2.2"/>
+  <g font-family="Arial,'Hiragino Kaku Gothic ProN','Noto Sans JP',Meiryo,sans-serif" fill="#153252" text-anchor="middle">
+    <text x="173" y="114" font-size="25" font-weight="700">ボタン・センサー</text>
+    <text x="173" y="157" font-size="21">まわりの情報</text>
+    <text x="600" y="110" font-size="29" font-weight="700">ESP32</text>
+    <text x="600" y="156" font-size="21">プログラムどおりに判断</text>
+    <text x="1026" y="114" font-size="24" font-weight="700">モーター・画面・音</text>
+    <text x="1026" y="155" font-size="20">動かす・表示する・鳴らす</text>
+  </g>
+  <path d="M326 140 H443" stroke="#536d92" stroke-width="3.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M753 140 H868" stroke="#536d92" stroke-width="3.5" fill="none" marker-end="url(#arrow)"/>
+</svg>
