@@ -151,12 +151,12 @@ function invalidate(){learned=false;attempts=[];el('code').value='';msg('score',
 el('register').addEventListener('click',()=>{
  try{
   const lines=el('bulk').value.split(/\r?\n/).map(x=>x.trim()).filter(x=>x.startsWith('SAMPLE,')&&!x.startsWith('SAMPLE,TEST,'));
-  if(lines.length!==6)throw Error('DOUBLE 3行とHOLD 3行が必要です。現在：'+lines.length+'行');
-  if(new Set(lines).size!==6)throw Error('まったく同じ行が重複しています。');
+  if(lines.length!==6)throw Error('まだ6回分がそろっていないよ。DOUBLEを3回、HOLDを3回集めよう。今ある数：'+lines.length+'行');
+  if(new Set(lines).size!==6)throw Error('同じ記録が2つ入っているよ。6回をもう一度やり直そう。');
   const data=lines.map(parse);
   for(let i=0;i<6;i++){
-   if(data[i].kind!==(i<3?0:1))throw Error('順番はDOUBLE 3行 → HOLD 3行です。');
-   const invalid=check(data[i]);if(invalid)throw Error((i+1)+'行目：'+invalid+' 再記録してください。');
+   if(data[i].kind!==(i<3?0:1))throw Error('順番がちがうよ。DOUBLEから始めて6回ともやり直そう。');
+   const invalid=check(data[i]);if(invalid)throw Error((i+1)+'行目：'+invalid+' 6回のお手本を最初から取り直そう。');
   }
   samples=data;persist();invalidate();redraw();msg('bulkMsg','6組を登録できました。STEP2へ！');
  }catch(e){msg('bulkMsg',e.message,true);}
