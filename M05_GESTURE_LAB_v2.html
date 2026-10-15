@@ -23,11 +23,11 @@ a{color:#d3ff9e}
 <span class="tag">MISSION 05 · 90分版</span><h1>AIジェスチャーコマンダー</h1>
 <p>今日はロボットに<b>手の動きを6回</b>見せて、おぼえてもらおう！ まずはDOUBLEを3回、次にHOLDを3回やってみよう。</p>
 <div class="note">車輪を床から浮かせて試そう。記録中はモーターを動かしません。</div>
-<section><h2>STEP 1｜2種類 × 3回、計6回記録</h2>
+<section><h2>STEP 1｜手の動きを6回記録しよう</h2>
 <div class="chips"><span class="chip">DOUBLE：近づける→戻す→近づける→戻す（3回）</span>
 <span class="chip">HOLD：近づける→少し止める→戻す（3回）</span></div>
-<p>ESP32に記録用コードを書きこみ、シリアルモニターを115200bpsで開こう。<b>DOUBLE 1/3</b>から始まり、3回成功するとHOLDに進む。手を25〜35cmあたりで止めてボタンを押し、カウント後にジェスチャー。動き始めると自動で記録し、元の場所で約0.7秒静止すると終了する。</p>
-<p><a href="https://github.com/edubotix00-sys/EDU-BOTIX-SIMULATIONS/blob/main/M05_GESTURE_COLLECT_v2.ino" target="_blank" rel="noopener">記録用コードをGitHubで開く</a></p>
+<p>① 下のコードをArduino IDEにコピーして書きこもう。② シリアルモニターを115200にしよう。③ 手を25〜35cmほどの場所に止め、ロボットのボタンを押そう。④ 3・2・1のあと、画面にWAITが出たらもう1秒止まり、それから手を動かそう。⑤ 元の位置にもどって少し止めると、1回分の記録が終わるよ。</p><div class="note"><b>DOUBLEを3回、HOLDを3回、ぜんぶで6回！</b><br>RETRYなら今の1回だけやり直そう。SAVED!が出たのに違う動きをしていたら、ESP32のENボタンでリセットし、前の記録を消して6回とも最初からやり直そう。</div>
+<p>コードはこの画面に用意してあるよ。<b>ほかのサイトを開かずに</b>、下のボタンからコピーしよう。</p>
 <details><summary>記録用コードをここで表示</summary><textarea id="collector" readonly placeholder="記録用コードを読み込み中…"></textarea>
 <button id="copyCollector">記録用コードをコピー</button><p id="collectorMsg" class="status"></p></details>
 <p><b>SAVED!</b>が6回表示されたら、シリアルモニターの全ログを一度にコピー。下に貼るだけ。関係ない行や「RETRY」は自動で無視される。</p>
