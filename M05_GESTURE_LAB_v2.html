@@ -117,7 +117,7 @@ function distance(a,b){
  return dtw(shape(a.values).v,shape(b.values).v)+Math.abs(a.duration-b.duration)*.0025;
 }
 function evaluate(s){
- const bad=check(s);if(bad)return {kind:-1,score:Infinity,reason:bad};
+ const bad=check(s);if(bad)return {kind:-1,score:Infinity,limit:Number(el('limit').value),nearest:[],reason:bad};
  const nearest=samples.map(x=>({kind:x.kind,d:distance(s,x)})).sort((a,b)=>a.d-b.d).slice(0,3);
  const count=[0,0];nearest.forEach(x=>count[x.kind]++);
  let kind=count[0]>=2?0:count[1]>=2?1:-1;
