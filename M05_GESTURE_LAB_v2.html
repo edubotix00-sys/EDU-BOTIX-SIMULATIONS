@@ -213,8 +213,8 @@ el('predict').addEventListener('click',()=>{
   const expect=Number(el('answer').value);const ok=r.kind===(expect===2?-1:expect);
   attempts.push(ok);
   msg('predictMsg',name+' と判定！ '+(ok?'正解':'不正解')+
-   '\n類似度：'+r.score.toFixed(2)+'／基準：'+r.limit.toFixed(2)+
-   '\n近いお手本：'+r.nearest.map(x=>(x.kind===0?'DOUBLE':'HOLD')+'('+x.d.toFixed(2)+')').join('、')+
+   '\n類似度：'+(Number.isFinite(r.score)?r.score.toFixed(2):'測定品質不足')+'／基準：'+r.limit.toFixed(2)+
+   '\n近いお手本：'+(r.nearest.length?r.nearest.map(x=>(x.kind===0?'DOUBLE':'HOLD')+'('+x.d.toFixed(2)+')').join('、'):'なし')+
    (r.reason?'\n理由：'+r.reason:''));
   msg('score','正解：'+attempts.filter(Boolean).length+' / '+attempts.length+'回');
  }catch(e){msg('predictMsg',e.message,true);}
